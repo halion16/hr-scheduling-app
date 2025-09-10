@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth, AuthProvider } from './hooks/useAuth';
+import { useAuth } from './hooks/useAuth';
 import { LoginPage } from './components/auth/LoginPage';
 import { UserManagement } from './components/auth/UserManagement';
 import { ProtectedRoute, usePermissionGuard } from './components/auth/ProtectedRoute';
@@ -7,26 +7,10 @@ import { Employee, Store } from './types';
 import { useScheduleData } from './hooks/useScheduleData';
 import { useShiftRotation } from './hooks/useShiftRotation';
 import { usePreferences } from './hooks/usePreferences';
+import { useDataLoadingIndicator } from './hooks/useDataLoadingIndicator';
+import { useNotifications } from './hooks/useNotifications';
 import { LogOut, User, Shield } from 'lucide-react';
 
-// 🆕 Hook per notificare il caricamento dati
-const useDataLoadingIndicator = () => {
-  const [isLoading, setIsLoading] = useState(true);
-  const [dataLoaded, setDataLoaded] = useState(false);
-  
-  useEffect(() => {
-    // Simula il tempo di caricamento dei dati
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-      setDataLoaded(true);
-      console.log('✅ Initial data loading completed');
-    }, 1000);
-    
-    return () => clearTimeout(timer);
-  }, []);
-  
-  return { isLoading, dataLoaded };
-};
 
 import { EmployeeList } from './components/employees/EmployeeList';
 import { EmployeeForm } from './components/employees/EmployeeForm';
@@ -53,11 +37,7 @@ type ModalType = 'employee' | 'store' | 'preferences' | null;
 
 // Main App Component with Authentication
 function App() {
-  return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
-  );
+  return <AppContent />;
 }
 
 // App Content Component (authenticated)
@@ -66,6 +46,7 @@ function AppContent() {
   const { user, profile, loading: authLoading, signOut } = useAuth();
   const { renderIfPermission, renderIfRole, hasPermission } = usePermissionGuard();
   const { isLoading, dataLoaded } = useDataLoadingIndicator();
+  const { showSuccessNotification, showErrorNotification } = useNotifications();
   
   const {
     employees,
@@ -328,59 +309,6 @@ function AppContent() {
     });
   }, [registerSyncCallback, addShift, isRegenerating, currentWeek]);
 
-  // 🎯 FUNZIONE DI NOTIFICA MIGLIORATA
-  const showSuccessNotification = (message: string) => {
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-      color: white;
-      padding: 16px 24px;
-      border-radius: 12px;
-      box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3);
-      z-index: 10000;
-      font-family: system-ui, -apple-system, sans-serif;
-      font-size: 15px;
-      font-weight: 600;
-      max-width: 400px;
-      animation: slideInRight 0.3s ease-out;
-    `;
-    
-    // Aggiungi animazione CSS
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes slideInRight {
-        from {
-          transform: translateX(100%);
-          opacity: 0;
-        }
-        to {
-          transform: translateX(0);
-          opacity: 1;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-    
-    notification.textContent = message;
-    document.body.appendChild(notification);
-
-    setTimeout(() => {
-      if (notification.parentNode) {
-        notification.style.animation = 'slideInRight 0.3s ease-out reverse';
-        setTimeout(() => {
-          if (notification.parentNode) {
-            notification.parentNode.removeChild(notification);
-          }
-        }, 300);
-      }
-      if (style.parentNode) {
-        style.parentNode.removeChild(style);
-      }
-    }, 4000);
-  };
 
   if (!user || !profile) {
     return <LoginPage />;
