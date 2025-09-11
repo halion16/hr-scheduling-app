@@ -245,6 +245,14 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
         updatedAt: new Date()
       }));
 
+      console.log('📤 EmployeeSyncModal - Inviando questi dipendenti per l\'import:', hrEmployees.map(e => ({
+        id: e.id,
+        nome: `${e.firstName} ${e.lastName}`,
+        email: e.email,
+        storeId: e.storeId,
+        shouldImport: toImport.find(api => api.employeeId === e.id)?.shouldImport
+      })));
+      
       onEmployeesImport(hrEmployees);
       setStep('import');
       

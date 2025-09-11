@@ -229,10 +229,16 @@ function AppContent() {
 
   // Handler per sincronizzazione intelligente con preview
   const handleIntelligentEmployeeSync = (employeesFromModal: Employee[]) => {
+    console.log(`🔄 Importando ${employeesFromModal.length} dipendenti:`, employeesFromModal.map(e => `${e.firstName} ${e.lastName}`));
+    
+    let addedCount = 0;
+    let updatedCount = 0;
+    
     employeesFromModal.forEach(emp => {
       const existingEmployee = employees.find(existing => existing.id === emp.id || existing.email === emp.email);
       
       if (existingEmployee) {
+        console.log(`🔄 Aggiornando dipendente esistente: ${emp.firstName} ${emp.lastName} (${emp.email})`);
         // Aggiorna dipendente esistente
         updateEmployee(existingEmployee.id, {
           firstName: emp.firstName,
@@ -245,7 +251,9 @@ function AppContent() {
           storeId: emp.storeId,
           updatedAt: new Date()
         });
+        updatedCount++;
       } else {
+        console.log(`➕ Aggiungendo nuovo dipendente: ${emp.firstName} ${emp.lastName} (${emp.email})`);
         // Aggiungi nuovo dipendente
         addEmployee({
           firstName: emp.firstName,
@@ -263,11 +271,15 @@ function AppContent() {
           preferredShifts: emp.preferredShifts || [],
           contractType: emp.contractType || 'full-time'
         });
+        addedCount++;
       }
     });
 
+    console.log(`✅ Importazione completata - Aggiunti: ${addedCount}, Aggiornati: ${updatedCount}`);
     setModalType(null);
-    showSuccessNotification(`✅ Importazione completata: ${employeesFromModal.length} dipendenti sincronizzati!`);
+    showSuccessNotification(
+      `✅ Importazione completata: ${addedCount} nuovi, ${updatedCount} aggiornati (${addedCount + updatedCount} totali)`
+    );
   };
 
   const weeklySchedule = {
