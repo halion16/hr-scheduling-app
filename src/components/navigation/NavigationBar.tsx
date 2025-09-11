@@ -2,7 +2,7 @@ import React from 'react';
 import { UserProfile } from '../../hooks/useAuth';
 import { Button } from '../common/Button';
 import { RefreshDataButton } from '../common/RefreshDataButton';
-import { LogOut, User, Shield, Settings } from 'lucide-react';
+import { LogOut, User, Shield, Settings, Database } from 'lucide-react';
 
 export interface NavigationItem {
   id: string;
@@ -19,6 +19,7 @@ interface NavigationBarProps {
   onViewChange: (view: string) => void;
   onSignOut: () => void;
   onOpenPreferences: () => void;
+  onOpenApiSettings?: () => void;
   onRefreshData: () => void;
   dataStats: {
     employees: number;
@@ -35,6 +36,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
   onViewChange,
   onSignOut,
   onOpenPreferences,
+  onOpenApiSettings,
   onRefreshData,
   dataStats,
   dataLoaded
@@ -102,6 +104,19 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
             >
               Esci
             </Button>
+            
+            {onOpenApiSettings && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={Database}
+                onClick={onOpenApiSettings}
+                className="text-green-600 hover:text-green-700 border-green-300"
+                title="Impostazioni API Aziendale"
+              >
+                API
+              </Button>
+            )}
             
             <Button
               variant="outline"

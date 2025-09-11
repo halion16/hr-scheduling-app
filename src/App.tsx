@@ -26,11 +26,13 @@ import { PreferencesModal } from './components/preferences/PreferencesModal';
 import { Modal } from './components/common/Modal';
 import { Button } from './components/common/Button';
 import { RefreshDataButton } from './components/common/RefreshDataButton';
+import { ApiSettings } from './components/settings/ApiSettings';
+import { EmployeeSyncModal } from './components/employees/EmployeeSyncModal';
 import { Users, Calendar, CalendarX } from 'lucide-react';
 import { exportScheduleToExcel, exportEmployeesToExcel } from './utils/exportUtils';
 import { getStartOfWeek, getEndOfWeek } from './utils/timeUtils';
 
-type ModalType = 'employee' | 'store' | 'preferences' | null;
+type ModalType = 'employee' | 'store' | 'preferences' | 'api-settings' | 'employee-sync' | null;
 
 // Main App Component with Authentication
 function App() {
@@ -198,6 +200,76 @@ function AppContent() {
     exportEmployeesToExcel(employees, stores);
   };
 
+  // Handler per sincronizzazione dipendenti da API aziendale (semplice)
+  const handleApiEmployeeSync = (apiEmployees: any[]) => {
+    apiEmployees.forEach(emp => {
+      const existingEmployee = employees.find(existing => existing.id === emp.id);
+      if (!existingEmployee) {
+        addEmployee({
+          firstName: emp.firstName,
+          lastName: emp.lastName,
+          email: emp.email,
+          phone: emp.phone || '',
+          position: emp.position,
+          department: emp.department,
+          hireDate: emp.hireDate,
+          isActive: emp.isActive,
+          storeId: emp.storeId,
+          skills: emp.skills || [],
+          maxWeeklyHours: emp.maxWeeklyHours || 40,
+          minRestHours: emp.minRestHours || 12,
+          preferredShifts: emp.preferredShifts || [],
+          contractType: emp.contractType || 'full-time'
+        });
+      }
+    });
+    
+    showSuccessNotification(`✅ Sincronizzati ${apiEmployees.length} dipendenti da API aziendale!`);
+  };
+
+  // Handler per sincronizzazione intelligente con preview
+  const handleIntelligentEmployeeSync = (employeesFromModal: Employee[]) => {
+    employeesFromModal.forEach(emp => {
+      const existingEmployee = employees.find(existing => existing.id === emp.id || existing.email === emp.email);
+      
+      if (existingEmployee) {
+        // Aggiorna dipendente esistente
+        updateEmployee(existingEmployee.id, {
+          firstName: emp.firstName,
+          lastName: emp.lastName,
+          email: emp.email,
+          phone: emp.phone,
+          position: emp.position,
+          department: emp.department,
+          isActive: emp.isActive,
+          storeId: emp.storeId,
+          updatedAt: new Date()
+        });
+      } else {
+        // Aggiungi nuovo dipendente
+        addEmployee({
+          firstName: emp.firstName,
+          lastName: emp.lastName,
+          email: emp.email,
+          phone: emp.phone,
+          position: emp.position,
+          department: emp.department,
+          hireDate: emp.hireDate,
+          isActive: emp.isActive,
+          storeId: emp.storeId,
+          skills: emp.skills || [],
+          maxWeeklyHours: emp.maxWeeklyHours || 40,
+          minRestHours: emp.minRestHours || 12,
+          preferredShifts: emp.preferredShifts || [],
+          contractType: emp.contractType || 'full-time'
+        });
+      }
+    });
+
+    setModalType(null);
+    showSuccessNotification(`✅ Importazione completata: ${employeesFromModal.length} dipendenti sincronizzati!`);
+  };
+
   const weeklySchedule = {
     weekStart: currentWeek,
     shifts: shifts.filter(shift => {
@@ -230,6 +302,7 @@ function AppContent() {
         onViewChange={setCurrentView}
         onSignOut={signOut}
         onOpenPreferences={() => setModalType('preferences')}
+        onOpenApiSettings={() => setModalType('api-settings')}
         onRefreshData={handleManualDataRefresh}
         dataStats={{
           employees: employees.length,
@@ -388,6 +461,7 @@ function AppContent() {
               }}
               onDelete={deleteEmployee}
               onAdd={() => setModalType('employee')}
+              onSync={() => setModalType('employee-sync')}
             />
           </div>
           </ProtectedRoute>
@@ -474,6 +548,22 @@ function AppContent() {
           resetPreferences();
           setModalType(null);
         }}
+      />
+
+      {/* Modal API Settings */}
+      <ApiSettings
+        isOpen={modalType === 'api-settings'}
+        onClose={() => setModalType(null)}
+        onEmployeeSync={handleApiEmployeeSync}
+      />
+
+      {/* Modal Employee Sync */}
+      <EmployeeSyncModal
+        isOpen={modalType === 'employee-sync'}
+        onClose={() => setModalType(null)}
+        onEmployeesImport={handleIntelligentEmployeeSync}
+        stores={stores}
+        existingEmployees={employees}
       />
     </div>
   );

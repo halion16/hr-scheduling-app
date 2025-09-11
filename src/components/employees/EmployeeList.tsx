@@ -3,7 +3,7 @@ import { Employee, Store } from '../../types';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { Select } from '../common/Select';
-import { Edit, Trash2, Search, UserPlus } from 'lucide-react';
+import { Edit, Trash2, Search, UserPlus, Download } from 'lucide-react';
 
 interface EmployeeListProps {
   employees: Employee[];
@@ -11,6 +11,7 @@ interface EmployeeListProps {
   onEdit: (employee: Employee) => void;
   onDelete: (employeeId: string) => void;
   onAdd: () => void;
+  onSync?: () => void;
 }
 
 export const EmployeeList: React.FC<EmployeeListProps> = ({
@@ -18,7 +19,8 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
   stores,
   onEdit,
   onDelete,
-  onAdd
+  onAdd,
+  onSync
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -60,9 +62,21 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Dipendenti</h2>
-        <Button icon={UserPlus} onClick={onAdd}>
-          Aggiungi Dipendente
-        </Button>
+        <div className="flex space-x-3">
+          {onSync && (
+            <Button 
+              variant="outline" 
+              icon={Download} 
+              onClick={onSync}
+              className="text-green-600 hover:text-green-700 border-green-300"
+            >
+              Sincronizza API
+            </Button>
+          )}
+          <Button icon={UserPlus} onClick={onAdd}>
+            Aggiungi Dipendente
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
