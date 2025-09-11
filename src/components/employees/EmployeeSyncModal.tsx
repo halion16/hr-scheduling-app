@@ -69,10 +69,11 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
     const orgUnit = (employee.organizationalUnit || '').toLowerCase();
     
     console.log(`🔍 Mapping per ${employee.firstName} ${employee.lastName}:`, {
-      orgUnit: employee.organizationalUnit,
+      organizationalUnit: employee.organizationalUnit,
       storeCode: employee.storeCode,
       storeName: employee.storeName,
-      department: employee.department
+      department: employee.department,
+      workLocation: employee.workLocation
     });
 
     // 1. PRIORITÀ MASSIMA: Unità Organizzativa dal gestionale

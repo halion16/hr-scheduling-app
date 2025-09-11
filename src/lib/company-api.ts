@@ -26,75 +26,75 @@ const MOCK_COMPANY_EMPLOYEES: CompanyApiEmployee[] = [
     firstName: 'Marco',
     lastName: 'Rossi',
     email: 'marco.rossi@company.it',
-    position: 'Senior Developer',
-    department: 'IT',
+    position: 'Sales Representative',
+    department: 'Sales',
     hireDate: '2022-03-15',
     phone: '+39 340 1234567',
     status: 'active',
-    organizationalUnit: 'Negozio Milano Centro',
-    storeCode: 'MIL001',
-    storeName: 'Milano Centro',
-    workLocation: 'Milano'
+    organizationalUnit: 'Barberino',
+    storeCode: 'BAR001',
+    storeName: 'Barberino',
+    workLocation: 'Barberino'
   },
   {
     employeeId: 'EMP002',
     firstName: 'Sofia',
     lastName: 'Bianchi',
     email: 'sofia.bianchi@company.it',
-    position: 'Marketing Manager',
-    department: 'Marketing',
+    position: 'Store Manager',
+    department: 'Retail',
     hireDate: '2021-09-01',
     phone: '+39 340 2345678',
     status: 'active',
-    organizationalUnit: 'Negozio Roma Termini',
-    storeCode: 'ROM001',
-    storeName: 'Roma Termini',
-    workLocation: 'Roma'
+    organizationalUnit: 'Barberino',
+    storeCode: 'BAR001',
+    storeName: 'Barberino',
+    workLocation: 'Barberino'
   },
   {
     employeeId: 'EMP003',
     firstName: 'Luca',
     lastName: 'Verdi',
     email: 'luca.verdi@company.it',
-    position: 'Sales Representative',
+    position: 'Sales Assistant',
     department: 'Sales',
     hireDate: '2023-01-10',
     phone: '+39 340 3456789',
     status: 'active',
-    organizationalUnit: 'Negozio Milano Porta Nuova',
-    storeCode: 'MIL002',
-    storeName: 'Milano Porta Nuova',
-    workLocation: 'Milano'
+    organizationalUnit: 'Barberino',
+    storeCode: 'BAR001',
+    storeName: 'Barberino',
+    workLocation: 'Barberino'
   },
   {
     employeeId: 'EMP004',
     firstName: 'Anna',
     lastName: 'Neri',
     email: 'anna.neri@company.it',
-    position: 'HR Manager',
-    department: 'HR',
+    position: 'Cashier',
+    department: 'Retail',
     hireDate: '2020-05-20',
     phone: '+39 340 4567890',
     status: 'active',
-    organizationalUnit: 'Sede Amministrativa Napoli',
-    storeCode: 'NAP001',
-    storeName: 'Napoli Centro',
-    workLocation: 'Napoli'
+    organizationalUnit: 'Barberino',
+    storeCode: 'BAR001',
+    storeName: 'Barberino',
+    workLocation: 'Barberino'
   },
   {
     employeeId: 'EMP005',
     firstName: 'Giovanni',
     lastName: 'Blu',
     email: 'giovanni.blu@company.it',
-    position: 'Store Manager',
-    department: 'Retail',
+    position: 'Part-time Sales',
+    department: 'Sales',
     hireDate: '2021-11-12',
     phone: '+39 340 5678901',
     status: 'active',
-    organizationalUnit: 'Punto Vendita Torino Lingotto',
-    storeCode: 'TOR001',
-    storeName: 'Torino Lingotto',
-    workLocation: 'Torino'
+    organizationalUnit: 'Barberino',
+    storeCode: 'BAR001',
+    storeName: 'Barberino',
+    workLocation: 'Barberino'
   },
   {
     employeeId: 'EMP006',
@@ -106,10 +106,10 @@ const MOCK_COMPANY_EMPLOYEES: CompanyApiEmployee[] = [
     hireDate: '2022-08-03',
     phone: '+39 340 6789012',
     status: 'active',
-    organizationalUnit: 'Negozio Roma Termini',
-    storeCode: 'ROM001',
-    storeName: 'Roma Termini',
-    workLocation: 'Roma'
+    organizationalUnit: 'Milano Centro',
+    storeCode: 'MIL001',
+    storeName: 'Milano Centro',
+    workLocation: 'Milano'
   }
 ];
 
@@ -343,8 +343,9 @@ export class CompanyApiService {
       hireDate: ecosEmployee.HireDate || ecosEmployee.DataAssunzione || new Date().toISOString().split('T')[0],
       phone: ecosEmployee.Phone || ecosEmployee.Telefono || ecosEmployee.PhoneNumber || '',
       status: (!ecosEmployee.Delete || ecosEmployee.Delete === '0') ? 'active' : 'inactive',
-      // Recupera unità organizzativa da vari possibili campi EcosAgile
-      organizationalUnit: ecosEmployee.OrganizationalUnit || 
+      // CAMPO PRINCIPALE: DepartmentDescShort contiene i nomi dei negozi
+      organizationalUnit: ecosEmployee.DepartmentDescShort || 
+                         ecosEmployee.OrganizationalUnit || 
                          ecosEmployee.UnitaOrganizzativa || 
                          ecosEmployee.BusinessUnit || 
                          ecosEmployee.WorkLocation || 
