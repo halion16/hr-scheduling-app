@@ -477,44 +477,82 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
                   })()}
                 </Button>
 
-                {/* Selezione rapida per negozio */}
-                {filteredEmployees.length > 0 && (
-                  <Select
-                    value=""
-                    onChange={(storeId) => {
-                      if (!storeId) return;
+                {/* Filtro e selezione per negozio */}
+                <Select
+                  value=""
+                  onChange={(storeId) => {
+                    if (!storeId) return;
+                    
+                    // Trova il negozio selezionato
+                    const selectedStore = stores.find(s => s.id === storeId);
+                    if (!selectedStore) return;
+                    
+                    console.log(`🏪 Selezionato negozio: ${selectedStore.name} (${storeId})`);
+                    
+                    // 1. Reset filtri esistenti
+                    setFilterName(''); 
+                    setFilterDepartment(''); 
+                    
+                    // 2. Trova tutti i dipendenti mappati a questo negozio
+                    const employeesForStore = apiEmployees.filter(emp => 
+                      emp.suggestedStoreId === storeId
+                    );
+                    
+                    console.log(`📋 Trovati ${employeesForStore.length} dipendenti per ${selectedStore.name}`);
+                    console.log(`🔍 Dettaglio dipendenti:`, employeesForStore.map(e => ({
+                      nome: `${e.firstName} ${e.lastName}`,
+                      orgUnit: e.organizationalUnit,
+                      suggestedStore: e.suggestedStoreName
+                    })));
+                    
+                    if (employeesForStore.length > 0) {
+                      // 3. DESELEZIONA tutto e SELEZIONA solo quelli del negozio
+                      setApiEmployees(prev => prev.map(emp => {
+                        const isForThisStore = emp.suggestedStoreId === storeId;
+                        return { ...emp, shouldImport: isForThisStore };
+                      }));
                       
-                      // Trova i dipendenti visibili assegnati a questo negozio
-                      const employeesForStore = filteredEmployees.filter(emp => 
-                        emp.suggestedStoreId === storeId
-                      );
-                      
-                      if (employeesForStore.length > 0) {
-                        const allSelected = employeesForStore.every(emp => emp.shouldImport);
-                        const shouldSelect = !allSelected;
-                        
-                        // Aggiorna la selezione per i dipendenti di questo negozio
-                        setApiEmployees(prev => prev.map(emp => {
-                          const isForThisStore = employeesForStore.find(filtered => 
-                            filtered.employeeId === emp.employeeId
-                          );
-                          return isForThisStore ? { ...emp, shouldImport: shouldSelect } : emp;
-                        }));
+                      // 4. APPLICA FILTRO per nome usando l'unità organizzativa comune
+                      const commonOrgUnit = employeesForStore[0]?.organizationalUnit;
+                      if (commonOrgUnit) {
+                        setFilterName(commonOrgUnit);
+                        console.log(`🔍 Applicato filtro per unità organizzativa: "${commonOrgUnit}"`);
                       }
-                    }}
-                    options={[
-                      { value: '', label: 'Seleziona per Negozio...' },
-                      ...stores.map(store => {
-                        const count = filteredEmployees.filter(emp => emp.suggestedStoreId === store.id).length;
-                        return {
-                          value: store.id,
-                          label: `${store.name} (${count})`
-                        };
-                      }).filter(option => option.label.includes('(') && !option.label.includes('(0)'))
-                    ]}
-                    size="sm"
-                  />
-                )}
+                      
+                      console.log(`✅ Selezionati ${employeesForStore.length} dipendenti per ${selectedStore.name}`);
+                    } else {
+                      alert(`⚠️ Nessun dipendente trovato per il negozio "${selectedStore.name}"`);
+                    }
+                  }}
+                  options={[
+                    { value: '', label: '🏪 Filtra per Negozio...' },
+                    ...stores.map(store => {
+                      const count = apiEmployees.filter(emp => 
+                        emp.suggestedStoreId === store.id ||
+                        (emp.organizationalUnit || '').toLowerCase().includes(store.name.toLowerCase())
+                      ).length;
+                      return {
+                        value: store.id,
+                        label: `${store.name} (${count})`
+                      };
+                    }).filter(option => !option.label.includes('(0)'))
+                  ]}
+                  size="sm"
+                />
+
+                {/* Pulsante Reset Filtri */}
+                <Button
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    setFilterName('');
+                    setFilterDepartment('');
+                    console.log('🔄 Reset filtri completato');
+                  }}
+                  className="text-gray-600"
+                >
+                  Reset
+                </Button>
               </div>
             </div>
 
