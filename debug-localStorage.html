@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug localStorage</title>
+</head>
+<body>
+    <h1>Debug localStorage HR App</h1>
+    <div id="output"></div>
+    
+    <script>
+        const output = document.getElementById('output');
+        
+        console.log('=== DEBUG LOCALSTORAGE ===');
+        
+        // Dipendenti
+        const employees = JSON.parse(localStorage.getItem('hr-employees') || '[]');
+        console.log('📊 TOTALE DIPENDENTI:', employees.length);
+        output.innerHTML += `<h2>📊 TOTALE DIPENDENTI: ${employees.length}</h2>`;
+        
+        console.log('👥 PRIMI 10 DIPENDENTI:');
+        output.innerHTML += '<h3>👥 PRIMI 10 DIPENDENTI:</h3><ul>';
+        employees.slice(0, 10).forEach((emp, i) => {
+            const line = `${i+1}. ID: ${emp.id}, Nome: ${emp.firstName} ${emp.lastName}, Store: ${emp.storeId}`;
+            console.log(line);
+            output.innerHTML += `<li>${line}</li>`;
+        });
+        output.innerHTML += '</ul>';
+        
+        // Controlla se ci sono ID duplicati
+        const ids = employees.map(e => e.id);
+        const uniqueIds = [...new Set(ids)];
+        if (ids.length !== uniqueIds.length) {
+            console.error('❌ TROVATI ID DUPLICATI!');
+            const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
+            const uniqueDuplicates = [...new Set(duplicates)];
+            console.error('🔍 ID DUPLICATI:', uniqueDuplicates);
+            output.innerHTML += `<h3 style="color: red;">❌ TROVATI ID DUPLICATI!</h3>`;
+            output.innerHTML += `<p style="color: red;">🔍 ID DUPLICATI: ${uniqueDuplicates.join(', ')}</p>`;
+        }
+        
+        // Controlla Rossella Trombella specificamente
+        const rossella = employees.filter(e => 
+            e.firstName.toLowerCase().includes('rossella') || 
+            e.lastName.toLowerCase().includes('trombella')
+        );
+        console.log('🔍 ROSSELLA TROMBELLA ENTRIES:', rossella.length);
+        output.innerHTML += `<h3>🔍 ROSSELLA TROMBELLA ENTRIES: ${rossella.length}</h3><ul>`;
+        rossella.forEach((emp, i) => {
+            const line = `Rossella ${i+1}: ID=${emp.id}, Nome=${emp.firstName} ${emp.lastName}`;
+            console.log(line);
+            output.innerHTML += `<li>${line}</li>`;
+        });
+        output.innerHTML += '</ul>';
+        
+        // Negozi
+        const stores = JSON.parse(localStorage.getItem('hr-stores') || '[]');
+        console.log('🏪 TOTALE NEGOZI:', stores.length);
+        output.innerHTML += `<h2>🏪 TOTALE NEGOZI: ${stores.length}</h2>`;
+        
+        // Mostra tutti i dipendenti con dettagli completi
+        output.innerHTML += '<h3>📋 TUTTI I DIPENDENTI (dettagli completi):</h3>';
+        employees.forEach((emp, i) => {
+            output.innerHTML += `<div style="margin: 10px 0; padding: 10px; border: 1px solid #ccc;">
+                <strong>${i+1}. ${emp.firstName} ${emp.lastName}</strong><br>
+                ID: ${emp.id}<br>
+                Store: ${emp.storeId}<br>
+                Contract Hours: ${emp.contractHours}<br>
+                Fixed Hours: ${emp.fixedHours}<br>
+                Active: ${emp.isActive}
+            </div>`;
+        });
+    </script>
+</body>
+</html>

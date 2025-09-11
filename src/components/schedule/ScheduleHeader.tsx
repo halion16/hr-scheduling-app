@@ -146,7 +146,7 @@ export const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({
 
   // 🎯 CALCOLO ORE TOTALI SETTIMANALI NECESSARIE
   const calculateWeeklyRequiredHours = (store: Store | null): number => {
-    if (!store) return 0;
+    if (!store || !store.openingHours) return 0;
 
     let totalHours = 0;
     

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ripristina Negozi Reali</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 8px; }
+        .button { 
+            padding: 12px 24px; 
+            margin: 5px; 
+            cursor: pointer; 
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        .button:hover { background: #0056b3; }
+        .danger { background: #dc3545; }
+        .danger:hover { background: #c82333; }
+        .log { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            font-family: monospace; 
+            margin: 10px 0; 
+            border-radius: 4px;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success { color: #28a745; font-weight: bold; }
+        .error { color: #dc3545; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>🏪 Ripristina Negozi Reali - HR Scheduling</h1>
+    
+    <div class="section">
+        <h2>📋 Stato Attuale</h2>
+        <button class="button" onclick="showCurrentStores()">Mostra Negozi Attuali</button>
+        <div id="currentStores" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>🔄 Ripristina Negozi Reali</h2>
+        <p><strong>Questa operazione ripristinerà tutti i 20 negozi reali basati sui dati EcosAgile.</strong></p>
+        <button class="button" onclick="restoreRealStores()">Ripristina Negozi Reali</button>
+        <div id="restoreResults" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>⚠️ Reset Completo</h2>
+        <p><strong>ATTENZIONE:</strong> Cancella tutti i dati e ricrea solo i negozi reali</p>
+        <button class="button danger" onclick="fullReset()">Reset Completo + Ripristino</button>
+    </div>
+
+    <script>
+        function log(message, elementId) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.textContent = message;
+            }
+            console.log(message);
+        }
+        
+        function showCurrentStores() {
+            const stores = localStorage.getItem('hr-stores');
+            
+            let output = '=== NEGOZI ATTUALI ===\\n';
+            
+            if (stores) {
+                const parsedStores = JSON.parse(stores);
+                output += `📊 Trovati ${parsedStores.length} negozi:\\n\\n`;
+                
+                parsedStores.forEach((store, i) => {
+                    output += `${i+1}. ${store.name}\\n`;
+                    output += `   ID: ${store.id}\\n`;
+                    output += `   Indirizzo: ${store.address || 'Non specificato'}\\n`;
+                    output += `   Manager: ${store.manager || 'Non specificato'}\\n\\n`;
+                });
+            } else {
+                output += '❌ NESSUN NEGOZIO TROVATO\\n';
+            }
+            
+            log(output, 'currentStores');
+        }
+        
+        function restoreRealStores() {
+            log('🔄 Ripristinando negozi reali...', 'restoreResults');
+            
+            // Lista dei negozi reali basata sui dati EcosAgile forniti dall'utente
+            const realStores = [
+                { name: 'Acquaviva delle Fonti', id: 'store-acquaviva' },
+                { name: 'Altamura', id: 'store-altamura' },
+                { name: 'Andria', id: 'store-andria' },
+                { name: 'Barletta', id: 'store-barletta' },
+                { name: 'Bisceglie', id: 'store-bisceglie' },
+                { name: 'Bitonto', id: 'store-bitonto' },
+                { name: 'Brindisi', id: 'store-brindisi' },
+                { name: 'Canosa di Puglia', id: 'store-canosa' },
+                { name: 'Corato', id: 'store-corato' },
+                { name: 'Fasano', id: 'store-fasano' },
+                { name: 'Foggia', id: 'store-foggia' },
+                { name: 'Francavilla Fontana', id: 'store-francavilla' },
+                { name: 'Gallipoli', id: 'store-gallipoli' },
+                { name: 'Gravina in Puglia', id: 'store-gravina' },
+                { name: 'Lecce', id: 'store-lecce' },
+                { name: 'Maglie', id: 'store-maglie' },
+                { name: 'Martina Franca', id: 'store-martina-franca' },
+                { name: 'Molfetta', id: 'store-molfetta' },
+                { name: 'Monopoli', id: 'store-monopoli' },
+                { name: 'Ostuni', id: 'store-ostuni' },
+                { name: 'Ruvo di Puglia', id: 'store-ruvo' },
+                { name: 'San Severo', id: 'store-san-severo' },
+                { name: 'Taranto', id: 'store-taranto' },
+                { name: 'Trani', id: 'store-trani' }
+            ];
+            
+            const storeObjects = realStores.map(store => ({
+                id: store.id,
+                name: store.name,
+                address: \`Via \${store.name}, Puglia\`,
+                phone: '+39 0800000000',
+                manager: \`Manager \${store.name}\`,
+                openingHours: {
+                    lunedì: { open: '09:00', close: '19:30' },
+                    martedì: { open: '09:00', close: '19:30' },
+                    mercoledì: { open: '09:00', close: '19:30' },
+                    giovedì: { open: '09:00', close: '19:30' },
+                    venerdì: { open: '09:00', close: '19:30' },
+                    sabato: { open: '09:00', close: '19:30' },
+                    domenica: null
+                },
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            }));
+            
+            // Preserve existing stores if any (merge approach)
+            let existingStores = [];
+            try {
+                const existing = localStorage.getItem('hr-stores');
+                if (existing) {
+                    existingStores = JSON.parse(existing);
+                }
+            } catch (e) {
+                console.warn('Errore nel parsing dei negozi esistenti:', e);
+            }
+            
+            // Remove any existing real stores to avoid duplicates
+            const filteredExisting = existingStores.filter(store => 
+                !realStores.some(real => real.name === store.name)
+            );
+            
+            // Combine existing (non-real) stores with real stores
+            const finalStores = [...filteredExisting, ...storeObjects];
+            
+            localStorage.setItem('hr-stores', JSON.stringify(finalStores));
+            
+            let output = \`✅ SUCCESSO! Ripristinati \${realStores.length} negozi reali.\\n\\n\`;
+            output += \`📊 RIEPILOGO:\\n\`;
+            output += \`- Negozi esistenti mantenuti: \${filteredExisting.length}\\n\`;
+            output += \`- Negozi reali ripristinati: \${realStores.length}\\n\`;
+            output += \`- Totale negozi: \${finalStores.length}\\n\\n\`;
+            
+            output += \`🏪 NEGOZI REALI RIPRISTINATI:\\n\`;
+            realStores.forEach((store, i) => {
+                output += \`\${i+1}. \${store.name}\\n\`;
+            });
+            
+            output += \`\\n🔄 Ricarica l'app principale per vedere i cambiamenti!\`;
+            
+            log(output, 'restoreResults');
+            
+            // Auto-refresh current stores
+            setTimeout(() => showCurrentStores(), 500);
+        }
+        
+        function fullReset() {
+            if (!confirm('⚠️ ATTENZIONE!\\n\\nQuesta operazione cancellerà TUTTI i dati (dipendenti, turni, indisponibilità) e ripristinerà solo i negozi reali.\\n\\nSei sicuro di voler continuare?')) {
+                return;
+            }
+            
+            // Clear all data
+            localStorage.removeItem('hr-employees');
+            localStorage.removeItem('hr-shifts');
+            localStorage.removeItem('hr-unavailabilities');
+            localStorage.removeItem('hr-stores');
+            
+            // Restore real stores
+            restoreRealStores();
+            
+            alert('✅ Reset completo eseguito!\\n\\nTutti i dati sono stati cancellati e i negozi reali sono stati ripristinati.\\n\\nRicarica l\\'app principale.');
+        }
+        
+        // Auto-show current stores on load
+        window.onload = showCurrentStores;
+    </script>
+</body>
+</html>

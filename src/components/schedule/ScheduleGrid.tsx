@@ -366,8 +366,8 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
       return weeklySchedule.openingHours[dayOfWeek];
     }
     
-    // Fallback agli orari standard
-    return store.openingHours[dayOfWeek];
+    // Fallback agli orari standard - con controllo sicurezza
+    return store.openingHours ? store.openingHours[dayOfWeek] : null;
   }, [store.openingHours]);
 
   // Calcolo avanzato delle ore settimanali con validazione

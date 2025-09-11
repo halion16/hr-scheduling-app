@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🚨 PULIZIA SEMPLICE</title>
+</head>
+<body>
+    <h1>🚨 PULIZIA MANUALE LOCALSTORAGE</h1>
+    
+    <h2>STEP 1: Copia e incolla nella console del browser (F12)</h2>
+    <textarea style="width: 100%; height: 200px; font-family: monospace;" readonly>
+// PULIZIA TOTALE
+console.log('🧹 PULIZIA INIZIATA');
+console.log('Prima:', localStorage.getItem('hr-employees') ? JSON.parse(localStorage.getItem('hr-employees')).length : 0, 'dipendenti');
+localStorage.removeItem('hr-employees');
+localStorage.removeItem('hr-stores'); 
+localStorage.removeItem('hr-shifts');
+localStorage.removeItem('hr-unavailabilities');
+console.log('✅ TUTTO PULITO! Ora esegui STEP 2');
+    </textarea>
+    
+    <h2>STEP 2: Copia e incolla nella console (dopo STEP 1)</h2>
+    <textarea style="width: 100%; height: 300px; font-family: monospace;" readonly>
+// RICREA NEGOZI
+const stores = ['Antegnate','Mantova','Barberino','Castelromano','Valmontone','Castelguelfo','Agira','Marcianise','Noventa D.P.','Valdichiana','Molfetta','Brugnato','Franciacorta','Orio Center','Citta Sant\'Angelo','Marzocca','Jesi'];
+const storeObjects = stores.map(name => ({
+    id: crypto.randomUUID(),
+    name: name,
+    address: '',
+    phone: '',
+    email: '',
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+}));
+localStorage.setItem('hr-stores', JSON.stringify(storeObjects));
+console.log('🏪 CREATI', storeObjects.length, 'NEGOZI');
+console.log('✅ RICARICA LA PAGINA HR (F5)');
+    </textarea>
+    
+    <h2>ISTRUZIONI:</h2>
+    <ol>
+        <li>Vai sull'app HR (localhost:5176)</li>
+        <li>Premi F12 per aprire Console</li>
+        <li>Copia TUTTO il testo di STEP 1 e incolla nella console, premi ENTER</li>
+        <li>Copia TUTTO il testo di STEP 2 e incolla nella console, premi ENTER</li>
+        <li>Ricarica la pagina HR con F5</li>
+        <li>Prova importazione dipendenti</li>
+    </ol>
+</body>
+</html>

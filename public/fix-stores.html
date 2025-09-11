@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fix Stores Data</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 8px; }
+        .button { 
+            padding: 12px 24px; 
+            margin: 5px; 
+            cursor: pointer; 
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        .button:hover { background: #0056b3; }
+        .danger { background: #dc3545; }
+        .danger:hover { background: #c82333; }
+        .success { background: #28a745; }
+        .log { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            font-family: monospace; 
+            margin: 10px 0; 
+            border-radius: 4px;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .error { color: #dc3545; font-weight: bold; }
+        .success-text { color: #28a745; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Fix Store Data - HR Scheduling</h1>
+    
+    <div class="section">
+        <h2>🔍 Diagnosi Problemi</h2>
+        <button class="button" onclick="diagnoseStoreData()">Diagnosi Dati Negozi</button>
+        <div id="diagnosisResults" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>🔧 Riparazione Automatica</h2>
+        <button class="button success" onclick="fixStoreData()">Ripara Dati Negozi</button>
+        <div id="fixResults" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>🏪 Crea Negozi Base</h2>
+        <button class="button" onclick="createCleanStores()">Crea Struttura Negozi Pulita</button>
+        <div id="createResults" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>🗑️ Reset Totale</h2>
+        <button class="button danger" onclick="fullReset()">Cancella Tutto</button>
+    </div>
+
+    <script>
+        function log(message, elementId) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.textContent = message;
+            }
+            console.log(message);
+        }
+        
+        function diagnoseStoreData() {
+            var output = '=== DIAGNOSI DATI NEGOZI ===\n\n';
+            
+            try {
+                var storeData = localStorage.getItem('hr-stores');
+                
+                if (!storeData) {
+                    output += '❌ PROBLEMA: Nessun dato negozi trovato\n';
+                    log(output, 'diagnosisResults');
+                    return;
+                }
+                
+                output += '✅ Dati negozi trovati\n\n';
+                
+                var stores;
+                try {
+                    stores = JSON.parse(storeData);
+                    output += 'Negozi parsati: ' + stores.length + '\n\n';
+                } catch (e) {
+                    output += 'ERRORE PARSING JSON: ' + e.message + '\n';
+                    output += 'Dati raw (primi 200 caratteri): ' + storeData.substring(0, 200) + '...\n';
+                    log(output, 'diagnosisResults');
+                    return;
+                }
+                
+                if (!Array.isArray(stores)) {
+                    output += '❌ PROBLEMA: I dati non sono un array\n';
+                    log(output, 'diagnosisResults');
+                    return;
+                }
+                
+                var validStores = 0;
+                var corruptedStores = 0;
+                var missingOpeningHours = 0;
+                
+                stores.forEach(function(store, i) {
+                    if (!store || typeof store !== 'object') {
+                        output += '❌ Negozio ' + i + ': Non è un oggetto valido\n';
+                        corruptedStores++;
+                        return;
+                    }
+                    
+                    if (!store.id || !store.name) {
+                        output += '❌ Negozio ' + i + ': Manca ID o Nome (' + (store.name || 'SENZA NOME') + ')\n';
+                        corruptedStores++;
+                        return;
+                    }
+                    
+                    if (!store.openingHours || typeof store.openingHours !== 'object') {
+                        output += '⚠️  Negozio ' + i + ' (' + store.name + '): Orari mancanti o corrotti\n';
+                        missingOpeningHours++;
+                    }
+                    
+                    validStores++;
+                });
+                
+                output += '\nRISULTATO DIAGNOSI:\n';
+                output += '- Negozi validi: ' + validStores + '\n';
+                output += '- Negozi corrotti: ' + corruptedStores + '\n';
+                output += '- Negozi senza orari: ' + missingOpeningHours + '\n\n';
+                
+                if (corruptedStores > 0 || missingOpeningHours > 0) {
+                    output += '🔧 RACCOMANDAZIONE: Esegui riparazione automatica\n';
+                } else {
+                    output += '✅ TUTTO OK: I dati sembrano validi\n';
+                }
+                
+            } catch (e) {
+                output += '❌ ERRORE DURANTE DIAGNOSI: ' + e.message + '\n';
+            }
+            
+            log(output, 'diagnosisResults');
+        }
+        
+        function fixStoreData() {
+            var output = '=== RIPARAZIONE DATI NEGOZI ===\n\n';
+            
+            try {
+                var storeData = localStorage.getItem('hr-stores');
+                
+                if (!storeData) {
+                    output += '❌ Nessun dato da riparare\n';
+                    log(output, 'fixResults');
+                    return;
+                }
+                
+                var stores;
+                try {
+                    stores = JSON.parse(storeData);
+                } catch (e) {
+                    output += '❌ Impossibile parsare i dati. Usa "Crea Struttura Pulita"\n';
+                    log(output, 'fixResults');
+                    return;
+                }
+                
+                if (!Array.isArray(stores)) {
+                    stores = [];
+                }
+                
+                var defaultHours = {
+                    'lunedì': { open: '09:00', close: '19:30' },
+                    'martedì': { open: '09:00', close: '19:30' },
+                    'mercoledì': { open: '09:00', close: '19:30' },
+                    'giovedì': { open: '09:00', close: '19:30' },
+                    'venerdì': { open: '09:00', close: '19:30' },
+                    'sabato': { open: '09:00', close: '19:30' },
+                    'domenica': null
+                };
+                
+                var fixed = 0;
+                var removed = 0;
+                
+                var repairedStores = stores.filter(function(store, i) {
+                    if (!store || typeof store !== 'object' || !store.id || !store.name) {
+                        output += '🗑️  Rimosso negozio corrotto ' + i + '\n';
+                        removed++;
+                        return false;
+                    }
+                    
+                    if (!store.openingHours || typeof store.openingHours !== 'object') {
+                        store.openingHours = defaultHours;
+                        output += '🔧 Riparati orari per: ' + store.name + '\n';
+                        fixed++;
+                    }
+                    
+                    if (!store.address) store.address = 'Via ' + store.name + ', Puglia';
+                    if (!store.phone) store.phone = '+39 0800000000';
+                    if (!store.manager) store.manager = 'Manager ' + store.name;
+                    if (!store.createdAt) store.createdAt = new Date().toISOString();
+                    if (!store.updatedAt) store.updatedAt = new Date().toISOString();
+                    
+                    return true;
+                });
+                
+                localStorage.setItem('hr-stores', JSON.stringify(repairedStores));
+                
+                output += '\nRIPARAZIONE COMPLETATA:\n';
+                output += '- Negozi riparati: ' + fixed + '\n';
+                output += '- Negozi rimossi: ' + removed + '\n';
+                output += '- Negozi finali: ' + repairedStores.length + '\n\n';
+                output += '🔄 Ricarica l\'app per vedere i cambiamenti\n';
+                
+            } catch (e) {
+                output += '❌ ERRORE DURANTE RIPARAZIONE: ' + e.message + '\n';
+            }
+            
+            log(output, 'fixResults');
+        }
+        
+        function createCleanStores() {
+            var output = '=== CREAZIONE STRUTTURA PULITA ===\n\n';
+            
+            var storeNames = [
+                'Acquaviva delle Fonti', 'Altamura', 'Andria', 'Barletta', 'Bisceglie', 
+                'Bitonto', 'Brindisi', 'Canosa di Puglia', 'Corato', 'Fasano', 
+                'Foggia', 'Francavilla Fontana', 'Gallipoli', 'Gravina in Puglia', 
+                'Lecce', 'Maglie', 'Martina Franca', 'Molfetta', 'Monopoli', 
+                'Ostuni', 'Ruvo di Puglia', 'San Severo', 'Taranto', 'Trani'
+            ];
+            
+            var cleanStores = storeNames.map(function(name, i) {
+                return {
+                    id: 'store-' + name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z-]/g, ''),
+                    name: name,
+                    address: 'Via ' + name + ', Puglia',
+                    phone: '+39 080' + String(i).padStart(7, '0'),
+                    manager: 'Manager ' + name,
+                    openingHours: {
+                        'lunedì': { open: '09:00', close: '19:30' },
+                        'martedì': { open: '09:00', close: '19:30' },
+                        'mercoledì': { open: '09:00', close: '19:30' },
+                        'giovedì': { open: '09:00', close: '19:30' },
+                        'venerdì': { open: '09:00', close: '19:30' },
+                        'sabato': { open: '09:00', close: '19:30' },
+                        'domenica': null
+                    },
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+            });
+            
+            localStorage.setItem('hr-stores', JSON.stringify(cleanStores));
+            
+            output += '✅ CREATA STRUTTURA PULITA:\n';
+            output += '- Negozi creati: ' + cleanStores.length + '\n';
+            output += '- Struttura: ID, Nome, Indirizzo, Telefono, Manager, Orari\n';
+            output += '- Orari: Lun-Sab 9:00-19:30, Domenica chiuso\n\n';
+            
+            for (var i = 0; i < Math.min(5, cleanStores.length); i++) {
+                output += '📍 ' + cleanStores[i].name + ' (ID: ' + cleanStores[i].id + ')\n';
+            }
+            
+            if (cleanStores.length > 5) {
+                output += '... e altri ' + (cleanStores.length - 5) + ' negozi\n';
+            }
+            
+            output += '\n🔄 Ricarica l\'app per vedere i nuovi negozi\n';
+            
+            log(output, 'createResults');
+        }
+        
+        function fullReset() {
+            if (!confirm('⚠️ ATTENZIONE!\n\nQuesta operazione cancellerà TUTTI i dati (negozi, dipendenti, turni, indisponibilità).\n\nSei sicuro?')) {
+                return;
+            }
+            
+            localStorage.clear();
+            alert('✅ Tutti i dati sono stati cancellati!\n\nRicarica l\'app.');
+        }
+        
+        // Auto-run diagnosis on load
+        window.onload = diagnoseStoreData;
+    </script>
+</body>
+</html>

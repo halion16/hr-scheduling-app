@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fix Duplication Bug</title>
+</head>
+<body>
+    <h1>🚨 Fix Bug Duplicazione Rossella Trombella</h1>
+    <div id="output"></div>
+    <br>
+    <button onclick="analyzeAndFix()" style="background: #dc2626; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">
+        🔧 ANALIZZA E RIPARA SUBITO
+    </button>
+    
+    <script>
+        function analyzeAndFix() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>🔍 ANALISI IN CORSO...</h2>';
+            
+            console.log('🚨 EMERGENZA: Analisi bug duplicazione iniziata');
+            
+            // Carica dipendenti
+            const employees = JSON.parse(localStorage.getItem('hr-employees') || '[]');
+            console.log('📊 TOTALE DIPENDENTI CARICATI:', employees.length);
+            
+            output.innerHTML += `<p>📊 TOTALE DIPENDENTI: ${employees.length}</p>`;
+            
+            // Trova tutti i dipendenti che contengono "Rossella" o "Trombella"
+            const rossellaEmployees = employees.filter(emp => 
+                emp.firstName && emp.lastName && (
+                    emp.firstName.toLowerCase().includes('rossella') || 
+                    emp.lastName.toLowerCase().includes('trombella') ||
+                    emp.firstName.toLowerCase().includes('trombella') ||
+                    emp.lastName.toLowerCase().includes('rossella')
+                )
+            );
+            
+            console.log('🔍 DIPENDENTI ROSSELLA/TROMBELLA:', rossellaEmployees.length);
+            output.innerHTML += `<h3>🔍 DIPENDENTI ROSSELLA/TROMBELLA: ${rossellaEmployees.length}</h3>`;
+            
+            if (rossellaEmployees.length > 0) {
+                output.innerHTML += '<h4>Dettagli:</h4><ul>';
+                rossellaEmployees.forEach((emp, i) => {
+                    const line = `${i+1}. ID: ${emp.id}, Nome: "${emp.firstName}" "${emp.lastName}", Store: ${emp.storeId}`;
+                    console.log(line);
+                    output.innerHTML += `<li>${line}</li>`;
+                });
+                output.innerHTML += '</ul>';
+            }
+            
+            // Controlla ID duplicati
+            const ids = employees.map(e => e.id);
+            const uniqueIds = [...new Set(ids)];
+            const hasDuplicates = ids.length !== uniqueIds.length;
+            
+            if (hasDuplicates) {
+                const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
+                const uniqueDuplicates = [...new Set(duplicates)];
+                console.error('❌ TROVATI ID DUPLICATI:', uniqueDuplicates);
+                
+                output.innerHTML += `<h3 style="color: red;">❌ TROVATI ${uniqueDuplicates.length} ID DUPLICATI!</h3>`;
+                output.innerHTML += `<p style="color: red;">🔍 ID DUPLICATI: ${uniqueDuplicates.join(', ')}</p>`;
+                
+                // RIPARAZIONE AUTOMATICA
+                console.log('🔧 INIZIANDO RIPARAZIONE AUTOMATICA...');
+                output.innerHTML += '<h3 style="color: orange;">🔧 RIPARAZIONE AUTOMATICA IN CORSO...</h3>';
+                
+                const cleanedEmployees = [];
+                const seenIds = new Set();
+                
+                employees.forEach((emp, index) => {
+                    if (emp && emp.id && !seenIds.has(emp.id)) {
+                        seenIds.add(emp.id);
+                        cleanedEmployees.push(emp);
+                        console.log(`✅ Mantenuto: ${emp.firstName} ${emp.lastName} (${emp.id})`);
+                    } else {
+                        console.log(`🗑️ Rimosso duplicato: ${emp ? emp.firstName + ' ' + emp.lastName : 'CORROTTO'} (${emp ? emp.id : 'NO-ID'})`);
+                    }
+                });
+                
+                output.innerHTML += `<p style="color: green;">✅ PULIZIA COMPLETATA: ${employees.length} → ${cleanedEmployees.length} dipendenti</p>`;
+                console.log(`✅ PULIZIA COMPLETATA: ${employees.length} → ${cleanedEmployees.length} dipendenti`);
+                
+                // Salva i dipendenti puliti
+                localStorage.setItem('hr-employees', JSON.stringify(cleanedEmployees));
+                
+                output.innerHTML += '<p style="color: green; font-weight: bold;">💾 DATI RIPARATI E SALVATI!</p>';
+                output.innerHTML += '<p style="color: blue;">🔄 Ricarica la pagina HR per vedere i risultati.</p>';
+                
+                console.log('💾 Dati riparati e salvati in localStorage');
+                
+            } else {
+                output.innerHTML += '<h3 style="color: green;">✅ NESSUN ID DUPLICATO TROVATO</h3>';
+                console.log('✅ Nessun ID duplicato trovato');
+                
+                // Controlla se ci sono dipendenti corrotti
+                const corruptedEmployees = employees.filter(emp => 
+                    !emp || !emp.id || !emp.firstName || !emp.lastName
+                );
+                
+                if (corruptedEmployees.length > 0) {
+                    console.error('🚨 TROVATI DIPENDENTI CORROTTI:', corruptedEmployees.length);
+                    output.innerHTML += `<h3 style="color: red;">🚨 TROVATI ${corruptedEmployees.length} DIPENDENTI CORROTTI</h3>`;
+                    
+                    // Rimuovi dipendenti corrotti
+                    const validEmployees = employees.filter(emp => 
+                        emp && emp.id && emp.firstName && emp.lastName
+                    );
+                    
+                    localStorage.setItem('hr-employees', JSON.stringify(validEmployees));
+                    output.innerHTML += `<p style="color: green;">✅ RIMOSSI ${corruptedEmployees.length} dipendenti corrotti</p>`;
+                    output.innerHTML += '<p style="color: blue;">🔄 Ricarica la pagina HR per vedere i risultati.</p>';
+                }
+            }
+            
+            // Verifica finale
+            const finalEmployees = JSON.parse(localStorage.getItem('hr-employees') || '[]');
+            output.innerHTML += `<h3>📊 STATO FINALE: ${finalEmployees.length} dipendenti validi</h3>`;
+            
+            // Mostra i primi 10 dipendenti finali
+            output.innerHTML += '<h4>👥 PRIMI 10 DIPENDENTI FINALI:</h4><ul>';
+            finalEmployees.slice(0, 10).forEach((emp, i) => {
+                output.innerHTML += `<li>${i+1}. ${emp.firstName} ${emp.lastName} - Store: ${emp.storeId || 'Non assegnato'}</li>`;
+            });
+            output.innerHTML += '</ul>';
+        }
+    </script>
+</body>
+</html>

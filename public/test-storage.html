@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test LocalStorage</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+        .button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .log { background: #f0f0f0; padding: 10px; font-family: monospace; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test LocalStorage - HR Scheduling</h1>
+    
+    <div class="section">
+        <h2>📋 Current Data</h2>
+        <button class="button" onclick="showCurrentData()">Show Current Data</button>
+        <div id="currentData" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>🗑️ Clear Data</h2>
+        <button class="button" onclick="clearAllData()">Clear All Data</button>
+    </div>
+    
+    <div class="section">
+        <h2>📦 Load Test Data</h2>
+        <button class="button" onclick="loadTestData()">Load Test Data (6 employees, 3 stores)</button>
+    </div>
+    
+    <div class="section">
+        <h2>✅ Verify Import</h2>
+        <button class="button" onclick="verifyImport()">Verify Employee Import</button>
+        <div id="verifyResults" class="log"></div>
+    </div>
+
+    <script>
+        function log(message) {
+            console.log(message);
+        }
+        
+        function showCurrentData() {
+            const employees = localStorage.getItem('hr-employees');
+            const stores = localStorage.getItem('hr-stores');
+            
+            let output = '=== CURRENT LOCALSTORAGE DATA ===\\n';
+            
+            if (stores) {
+                const parsedStores = JSON.parse(stores);
+                output += `🏪 STORES (${parsedStores.length}):\\n`;
+                parsedStores.forEach((store, i) => {
+                    output += `  ${i+1}. ${store.name} (${store.id})\\n`;
+                });
+            } else {
+                output += '🏪 STORES: NESSUNO\\n';
+            }
+            
+            output += '\\n';
+            
+            if (employees) {
+                const parsedEmployees = JSON.parse(employees);
+                output += `👥 EMPLOYEES (${parsedEmployees.length}):\\n`;
+                
+                // Raggruppa per storeId
+                const byStore = parsedEmployees.reduce((acc, emp) => {
+                    const storeId = emp.storeId || 'NO_STORE';
+                    if (!acc[storeId]) acc[storeId] = [];
+                    acc[storeId].push(emp);
+                    return acc;
+                }, {});
+                
+                Object.entries(byStore).forEach(([storeId, emps]) => {
+                    const storeName = stores ? JSON.parse(stores).find(s => s.id === storeId)?.name || 'UNKNOWN' : 'UNKNOWN';
+                    output += `  📍 ${storeName} (${storeId}): ${emps.length} dipendenti\\n`;
+                    emps.forEach(emp => {
+                        output += `    - ${emp.firstName} ${emp.lastName} (${emp.id})\\n`;
+                    });
+                });
+            } else {
+                output += '👥 EMPLOYEES: NESSUNO\\n';
+            }
+            
+            document.getElementById('currentData').innerText = output;
+            console.log(output);
+        }
+        
+        function clearAllData() {
+            localStorage.removeItem('hr-employees');
+            localStorage.removeItem('hr-stores'); 
+            localStorage.removeItem('hr-shifts');
+            localStorage.removeItem('hr-unavailabilities');
+            alert('✅ Tutti i dati sono stati cancellati! Ricarica la pagina principale.');
+            showCurrentData();
+        }
+        
+        function loadTestData() {
+            // Test stores
+            const testStores = [
+                {
+                    id: 'store-001-test',
+                    name: 'Milano Centro',
+                    address: 'Via Milano 1',
+                    phone: '+391111111',
+                    manager: 'Manager Milano',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                },
+                {
+                    id: 'store-002-test',
+                    name: 'Roma Termini',
+                    address: 'Via Roma 2',
+                    phone: '+392222222',
+                    manager: 'Manager Roma',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                },
+                {
+                    id: 'store-003-test',
+                    name: 'Napoli Centro',
+                    address: 'Via Napoli 3',
+                    phone: '+393333333',
+                    manager: 'Manager Napoli',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                }
+            ];
+            
+            // Test employees
+            const testEmployees = [
+                {
+                    id: 'emp-001-test',
+                    firstName: 'Mario',
+                    lastName: 'Rossi',
+                    email: 'mario.rossi@test.com',
+                    phone: '+39123456789',
+                    position: 'Commesso',
+                    department: 'Vendite',
+                    hireDate: new Date().toISOString(),
+                    isActive: true,
+                    storeId: 'store-001-test',
+                    skills: [],
+                    maxWeeklyHours: 40,
+                    minRestHours: 12,
+                    preferredShifts: [],
+                    contractType: 'full-time',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                },
+                {
+                    id: 'emp-002-test',
+                    firstName: 'Luigi',
+                    lastName: 'Verdi',
+                    email: 'luigi.verdi@test.com',
+                    phone: '+39123456790',
+                    position: 'Commesso',
+                    department: 'Vendite',
+                    hireDate: new Date().toISOString(),
+                    isActive: true,
+                    storeId: 'store-001-test', // Stesso store
+                    skills: [],
+                    maxWeeklyHours: 40,
+                    minRestHours: 12,
+                    preferredShifts: [],
+                    contractType: 'full-time',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                },
+                {
+                    id: 'emp-003-test',
+                    firstName: 'Anna',
+                    lastName: 'Bianchi',
+                    email: 'anna.bianchi@test.com',
+                    phone: '+39123456791',
+                    position: 'Commesso',
+                    department: 'Vendite',
+                    hireDate: new Date().toISOString(),
+                    isActive: true,
+                    storeId: 'store-002-test', // Secondo store
+                    skills: [],
+                    maxWeeklyHours: 40,
+                    minRestHours: 12,
+                    preferredShifts: [],
+                    contractType: 'full-time',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                },
+                {
+                    id: 'emp-004-test',
+                    firstName: 'Paolo',
+                    lastName: 'Gialli',
+                    email: 'paolo.gialli@test.com',
+                    phone: '+39123456792',
+                    position: 'Commesso',
+                    department: 'Vendite',
+                    hireDate: new Date().toISOString(),
+                    isActive: true,
+                    storeId: 'store-002-test', // Stesso del terzo
+                    skills: [],
+                    maxWeeklyHours: 40,
+                    minRestHours: 12,
+                    preferredShifts: [],
+                    contractType: 'full-time',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                },
+                {
+                    id: 'emp-005-test',
+                    firstName: 'Maria',
+                    lastName: 'Rosa',
+                    email: 'maria.rosa@test.com',
+                    phone: '+39123456793',
+                    position: 'Commesso',
+                    department: 'Vendite',
+                    hireDate: new Date().toISOString(),
+                    isActive: true,
+                    storeId: 'store-003-test', // Terzo store
+                    skills: [],
+                    maxWeeklyHours: 40,
+                    minRestHours: 12,
+                    preferredShifts: [],
+                    contractType: 'full-time',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                },
+                {
+                    id: 'emp-006-test',
+                    firstName: 'Giuseppe',
+                    lastName: 'Blu',
+                    email: 'giuseppe.blu@test.com',
+                    phone: '+39123456794',
+                    position: 'Commesso',
+                    department: 'Vendite',
+                    hireDate: new Date().toISOString(),
+                    isActive: true,
+                    storeId: 'store-003-test', // Stesso del quinto
+                    skills: [],
+                    maxWeeklyHours: 40,
+                    minRestHours: 12,
+                    preferredShifts: [],
+                    contractType: 'full-time',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                }
+            ];
+            
+            localStorage.setItem('hr-stores', JSON.stringify(testStores));
+            localStorage.setItem('hr-employees', JSON.stringify(testEmployees));
+            
+            alert('✅ Dati di test caricati!\\n\\n' +
+                  '📊 RIEPILOGO:\\n' +
+                  '- Milano Centro: 2 dipendenti\\n' +
+                  '- Roma Termini: 2 dipendenti\\n' +
+                  '- Napoli Centro: 2 dipendenti\\n\\n' +
+                  '🔄 Ricarica la pagina principale per vedere i dati!');
+            
+            showCurrentData();
+        }
+        
+        function verifyImport() {
+            const employees = localStorage.getItem('hr-employees');
+            const stores = localStorage.getItem('hr-stores');
+            
+            let output = '=== VERIFICA IMPORTAZIONE ===\\n';
+            
+            if (!employees || !stores) {
+                output += '❌ ERRORE: Dati mancanti!\\n';
+                document.getElementById('verifyResults').innerText = output;
+                return;
+            }
+            
+            const parsedEmployees = JSON.parse(employees);
+            const parsedStores = JSON.parse(stores);
+            
+            output += `✅ Trovati ${parsedEmployees.length} dipendenti e ${parsedStores.length} negozi\\n\\n`;
+            
+            // Verifica che ogni dipendente abbia un storeId valido
+            let validEmployees = 0;
+            let invalidEmployees = 0;
+            
+            const storeIds = new Set(parsedStores.map(s => s.id));
+            
+            parsedEmployees.forEach(emp => {
+                if (emp.storeId && storeIds.has(emp.storeId)) {
+                    validEmployees++;
+                } else {
+                    invalidEmployees++;
+                    output += `❌ ${emp.firstName} ${emp.lastName}: storeId invalido (${emp.storeId})\\n`;
+                }
+            });
+            
+            output += `\\n📊 RISULTATO:\\n`;
+            output += `- Dipendenti con storeId valido: ${validEmployees}\\n`;
+            output += `- Dipendenti con storeId invalido: ${invalidEmployees}\\n\\n`;
+            
+            // Conta dipendenti per negozio
+            const employeesByStore = {};
+            parsedEmployees.forEach(emp => {
+                if (emp.storeId) {
+                    employeesByStore[emp.storeId] = (employeesByStore[emp.storeId] || 0) + 1;
+                }
+            });
+            
+            output += `📍 DIPENDENTI PER NEGOZIO:\\n`;
+            parsedStores.forEach(store => {
+                const count = employeesByStore[store.id] || 0;
+                output += `- ${store.name}: ${count} dipendenti\\n`;
+            });
+            
+            if (invalidEmployees === 0) {
+                output += `\\n✅ SUCCESSO: Tutti i dipendenti hanno storeId validi!`;
+            } else {
+                output += `\\n❌ PROBLEMI: ${invalidEmployees} dipendenti con storeId invalidi!`;
+            }
+            
+            document.getElementById('verifyResults').innerText = output;
+            console.log(output);
+        }
+        
+        // Auto-show current data on load
+        window.onload = showCurrentData;
+    </script>
+</body>
+</html>

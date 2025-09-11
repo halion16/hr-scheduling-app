@@ -214,7 +214,7 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
       });
       
       const hrEmployees: Employee[] = toImport.map(emp => ({
-        id: emp.employeeId,
+        id: crypto.randomUUID(), // 🔧 FIX: Genera sempre ID univoco, non usare API employeeId
         firstName: emp.firstName,
         lastName: emp.lastName,
         email: emp.email,
@@ -278,9 +278,9 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
 
       // Importing single employee
 
-      // Converti in formato HR
+      // Converti in formato HR con ID univoco generato
       const hrEmployee: Employee = {
-        id: employee.employeeId,
+        id: crypto.randomUUID(), // 🔧 FIX: Genera sempre ID univoco, non usare API employeeId
         firstName: employee.firstName,
         lastName: employee.lastName,
         email: employee.email,

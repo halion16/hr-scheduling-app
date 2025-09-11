@@ -3,7 +3,7 @@ import { Employee, Store } from '../../types';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { Select } from '../common/Select';
-import { Edit, Trash2, Search, UserPlus, Download } from 'lucide-react';
+import { Edit, Trash2, Search, UserPlus, Download, RotateCcw, Store as StoreIcon } from 'lucide-react';
 
 interface EmployeeListProps {
   employees: Employee[];
@@ -64,11 +64,66 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
     { value: 'inactive', label: 'Inattivi' }
   ];
 
+  // Funzione di pulizia localStorage (temporanea per debug)
+  const clearLocalStorage = () => {
+    if (confirm('🧹 ATTENZIONE: Questo rimuoverà SOLO i dipendenti corrotti. I negozi saranno preservati. Continuare?')) {
+      localStorage.removeItem('hr-employees');
+      localStorage.removeItem('hr-shifts');
+      localStorage.removeItem('hr-unavailabilities');
+      // NON rimuoviamo hr-stores per preservare i negozi
+      alert('✅ Dipendenti rimossi! La pagina verrà ricaricata.');
+      window.location.reload();
+    }
+  };
+
+  // Funzione per ricreare i negozi comuni
+  const recreateStores = () => {
+    if (confirm('🏪 Ricreare i negozi comuni dall\'API EcosAgile? Questo aggiungerà i negozi mancanti.')) {
+      const commonStores = [
+        'Antegnate', 'Mantova', 'Barberino', 'Castelromano', 'Valmontone', 
+        'Castelguelfo', 'Agira', 'Marcianise', 'Noventa D.P.', 'Valdichiana',
+        'Molfetta', 'Brugnato', 'Franciacorta', 'Orio Center', 'Citta Sant\'Angelo',
+        'Marzocca', 'Jesi'
+      ];
+
+      const storeObjects = commonStores.map(name => ({
+        id: crypto.randomUUID(),
+        name: name,
+        address: '',
+        phone: '',
+        email: '',
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }));
+
+      localStorage.setItem('hr-stores', JSON.stringify(storeObjects));
+      alert(`✅ Creati ${storeObjects.length} negozi! La pagina verrà ricaricata.`);
+      window.location.reload();
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Dipendenti</h2>
         <div className="flex space-x-3">
+          <Button 
+            variant="outline" 
+            icon={StoreIcon} 
+            onClick={recreateStores}
+            className="text-blue-600 hover:text-blue-700 border-blue-300"
+          >
+            Ripristina Negozi
+          </Button>
+          <Button 
+            variant="outline" 
+            icon={RotateCcw} 
+            onClick={clearLocalStorage}
+            className="text-red-600 hover:text-red-700 border-red-300"
+          >
+            Reset Dati
+          </Button>
           {onSync && (
             <Button 
               variant="outline" 

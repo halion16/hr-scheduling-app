@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🚨 PULIZIA EMERGENZA</title>
+</head>
+<body>
+    <h1>🚨 PULIZIA TOTALE EMERGENZA</h1>
+    <div id="output"></div>
+    <br>
+    <button onclick="emergencyClean()" style="background: #dc2626; color: white; padding: 15px 30px; border: none; border-radius: 5px; cursor: pointer; font-size: 18px;">
+        🧹 PULIZIA TOTALE IMMEDIATA
+    </button>
+    <br><br>
+    <button onclick="recreateStores()" style="background: #059669; color: white; padding: 15px 30px; border: none; border-radius: 5px; cursor: pointer; font-size: 18px;">
+        🏪 RICREA NEGOZI
+    </button>
+    
+    <script>
+        function emergencyClean() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>🧹 PULIZIA TOTALE IN CORSO...</h2>';
+            
+            console.log('🚨 EMERGENZA: Pulizia totale localStorage');
+            
+            // Stampa stato prima della pulizia
+            const employeesBefore = JSON.parse(localStorage.getItem('hr-employees') || '[]');
+            const storesBefore = JSON.parse(localStorage.getItem('hr-stores') || '[]');
+            
+            output.innerHTML += `<p>📊 PRIMA: ${employeesBefore.length} dipendenti, ${storesBefore.length} negozi</p>`;
+            
+            // RIMUOVI TUTTO
+            localStorage.removeItem('hr-employees');
+            localStorage.removeItem('hr-stores');
+            localStorage.removeItem('hr-shifts');
+            localStorage.removeItem('hr-unavailabilities');
+            
+            console.log('🗑️ Tutti i dati rimossi');
+            output.innerHTML += '<p style="color: red; font-weight: bold;">🗑️ TUTTI I DATI RIMOSSI!</p>';
+            output.innerHTML += '<p style="color: blue;">📱 Ora ricarica l\'app HR (F5) per iniziare da zero.</p>';
+        }
+        
+        function recreateStores() {
+            const output = document.getElementById('output');
+            
+            const stores = [
+                'Antegnate', 'Mantova', 'Barberino', 'Castelromano', 'Valmontone',
+                'Castelguelfo', 'Agira', 'Marcianise', 'Noventa D.P.', 'Valdichiana',
+                'Molfetta', 'Brugnato', 'Franciacorta', 'Orio Center', 'Citta Sant\\'Angelo',
+                'Marzocca', 'Jesi'
+            ];
+            
+            const storeObjects = stores.map(name => ({
+                id: crypto.randomUUID(),
+                name: name,
+                address: '',
+                phone: '',
+                email: '',
+                isActive: true,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            }));
+            
+            localStorage.setItem('hr-stores', JSON.stringify(storeObjects));
+            
+            output.innerHTML += `<p style="color: green;">🏪 CREATI ${storeObjects.length} NEGOZI FRESCHI!</p>`;
+            output.innerHTML += '<p style="color: blue;">📱 Ricarica l\'app HR per vederli.</p>';
+            
+            console.log('🏪 Negozi ricreati:', storeObjects.length);
+        }
+    </script>
+</body>
+</html>

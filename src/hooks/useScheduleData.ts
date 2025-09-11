@@ -23,13 +23,10 @@ const useVisibilityChange = () => {
 };
 
 export const useScheduleData = () => {
-  // Flag per gestire importazioni in corso (blocca temporaneamente cross-tab sync)
-  const [isImporting, setIsImporting] = useState(false);
-  
-  const [employees, setEmployees, refreshEmployees] = useLocalStorage<Employee[]>('hr-employees', [], isImporting);
-  const [stores, setStores, refreshStores] = useLocalStorage<Store[]>('hr-stores', [], isImporting);
-  const [shifts, setShifts, refreshShifts] = useLocalStorage<Shift[]>('hr-shifts', [], isImporting);
-  const [unavailabilities, setUnavailabilities, refreshUnavailabilities] = useLocalStorage<EmployeeUnavailability[]>('hr-unavailabilities', [], isImporting);
+  const [employees, setEmployees, refreshEmployees] = useLocalStorage<Employee[]>('hr-employees', []);
+  const [stores, setStores, refreshStores] = useLocalStorage<Store[]>('hr-stores', []);
+  const [shifts, setShifts, refreshShifts] = useLocalStorage<Shift[]>('hr-shifts', []);
+  const [unavailabilities, setUnavailabilities, refreshUnavailabilities] = useLocalStorage<EmployeeUnavailability[]>('hr-unavailabilities', []);
 
   // Force initial data load on mount (only once)
   useEffect(() => {
@@ -38,6 +35,8 @@ export const useScheduleData = () => {
     refreshShifts();
     refreshUnavailabilities();
   }, []); // Empty dependency array - only run once on mount
+
+  // Sistema di recupero automatico rimosso per evitare conflitti
 
   // Function to refresh all data from localStorage
   const refreshAllData = () => {
@@ -145,8 +144,8 @@ export const useScheduleData = () => {
   };
 
   const addEmployee = (employee: Omit<Employee, 'createdAt' | 'updatedAt'>) => {
-    // Attiva flag importazione per bloccare cross-tab sync
-    setIsImporting(true);
+    console.log('➕ ADDEMPLOYEE - Received employee:', employee);
+    console.log('➕ ADDEMPLOYEE - Employee ID:', employee.id, typeof employee.id);
     
     const newEmployee: Employee = {
       ...employee,
@@ -154,21 +153,60 @@ export const useScheduleData = () => {
       updatedAt: new Date()
     };
     
+    console.log('➕ ADDEMPLOYEE - Created newEmployee:', newEmployee);
+    console.log('➕ ADDEMPLOYEE - New employee ID:', newEmployee.id, typeof newEmployee.id);
+    
     setEmployees(prev => [...prev, newEmployee]);
-    
-    // Disattiva flag dopo 2 secondi per permettere sync normale
-    setTimeout(() => {
-      setIsImporting(false);
-    }, 2000);
-    
     return newEmployee;
   };
 
   const updateEmployee = (id: string, updates: Partial<Employee>) => {
     console.log('🔄 Updating employee:', id, updates);
-    setEmployees(prev => prev.map(emp => 
-      emp.id === id ? { ...emp, ...updates, updatedAt: new Date() } : emp
-    ));
+    console.log('📊 Current employees count before update:', employees.length);
+    
+    // 🔒 PROTEZIONE ID: Rimuovi id dall'oggetto updates per prevenire sovrascrittura
+    const { id: _, ...safeUpdates } = updates as any;
+    
+    console.log('🛡️ Safe updates (ID protected):', safeUpdates);
+    
+    setEmployees(prev => {
+      console.log('🔍 Previous employees in state:', prev.length);
+      console.log('🔍 Looking for employee with ID:', id);
+      
+      // PROTEZIONE CRITICA: Verifica ID valido
+      if (!id || id === 'undefined' || typeof id !== 'string') {
+        console.error('❌ INVALID ID for update:', id, typeof id);
+        console.error('❌ This would corrupt all employees! Aborting update.');
+        return prev;
+      }
+      
+      // Verifica che l'employee esista
+      const existingEmployee = prev.find(emp => emp.id === id);
+      if (!existingEmployee) {
+        console.error('❌ Employee not found with ID:', id);
+        console.error('❌ Available IDs:', prev.map(emp => emp.id));
+        return prev;
+      }
+      
+      const result = prev.map(emp => {
+        if (emp.id === id) {
+          const updated = { ...emp, ...safeUpdates, id: emp.id, updatedAt: new Date() }; // Force preserve original ID
+          console.log(`✅ Updated employee ${emp.firstName} ${emp.lastName} -> ${updated.firstName} ${updated.lastName}`);
+          return updated;
+        }
+        return emp; // NON modificare altri dipendenti
+      });
+      
+      console.log(`📊 Employee count: ${prev.length} -> ${result.length}`);
+      
+      // Verifica integrità risultato
+      if (result.length !== prev.length) {
+        console.error('🚨 CRITICAL: Employee count changed during update!');
+        return prev; // Rollback
+      }
+      
+      return result;
+    });
   };
 
   const deleteEmployee = (id: string) => {

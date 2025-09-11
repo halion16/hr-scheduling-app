@@ -120,6 +120,14 @@ function AppContent() {
 
   const handleEmployeeSubmit = (data: Omit<Employee, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (editingEmployee) {
+      // 🔧 AUTO-FIX: Se il dipendente non ha ID, generane uno nuovo
+      if (!editingEmployee.id || editingEmployee.id === 'undefined') {
+        console.warn('⚠️ Employee missing ID, generating new one:', editingEmployee);
+        const newId = crypto.randomUUID();
+        editingEmployee.id = newId;
+        console.log('🔧 Generated new ID:', newId);
+      }
+      console.log('🔄 Updating employee with ID:', editingEmployee.id);
       updateEmployee(editingEmployee.id, data);
     } else {
       addEmployee(data);
@@ -248,13 +256,14 @@ function AppContent() {
           position: emp.position,
           department: emp.department,
           isActive: emp.isActive,
-          storeId: emp.storeId,
-          updatedAt: new Date()
+          storeId: emp.storeId
+          // updatedAt viene aggiunto automaticamente da updateEmployee
         });
         updatedCount++;
       } else {
-        // Aggiungi nuovo dipendente
+        // Aggiungi nuovo dipendente - PRESERVA L'ID!
         addEmployee({
+          id: emp.id, // 🔧 FIX CRITICO: Preserva l'ID dall'importazione!
           firstName: emp.firstName,
           lastName: emp.lastName,
           email: emp.email,
