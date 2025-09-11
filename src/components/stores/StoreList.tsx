@@ -58,6 +58,9 @@ export const StoreList: React.FC<StoreListProps> = ({
   };
 
   const calculateTotalWeeklyHours = (openingHours: Store['openingHours']) => {
+    if (!openingHours || typeof openingHours !== 'object') {
+      return 0;
+    }
     return Object.values(openingHours).reduce((total, hours) => {
       if (!hours) return total;
       
@@ -72,6 +75,9 @@ export const StoreList: React.FC<StoreListProps> = ({
   };
 
   const getOperatingStatus = (openingHours: Store['openingHours']) => {
+    if (!openingHours || typeof openingHours !== 'object') {
+      return { openDays: 0, totalWeeklyHours: 0 };
+    }
     const openDays = Object.values(openingHours).filter(hours => hours).length;
     const totalWeeklyHours = calculateTotalWeeklyHours(openingHours);
     
@@ -518,7 +524,7 @@ const StoreGridCard: React.FC<StoreCardProps> = ({
   getOperatingStatus
 }) => {
   const [showFullHours, setShowFullHours] = useState(false);
-  const operatingStatus = getOperatingStatus(store.openingHours);
+  const operatingStatus = getOperatingStatus(store?.openingHours || {});
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-all duration-200">
@@ -607,7 +613,7 @@ const StoreGridCard: React.FC<StoreCardProps> = ({
         
         {showFullHours ? (
           <div className="mt-3 space-y-1.5">
-            {Object.entries(store.openingHours).map(([day, hours]) => (
+            {Object.entries(store?.openingHours || {}).map(([day, hours]) => (
               <div key={day} className="flex justify-between items-center py-1">
                 <span className="text-sm text-gray-600 w-16">
                   {dayAbbreviations[day as keyof typeof dayAbbreviations]}
@@ -648,7 +654,7 @@ const StoreListRow: React.FC<StoreCardProps> = ({
   dayAbbreviations,
   getOperatingStatus
 }) => {
-  const operatingStatus = getOperatingStatus(store.openingHours);
+  const operatingStatus = getOperatingStatus(store?.openingHours || {});
   
   return (
     <tr className="hover:bg-gray-50 transition-colors">
@@ -690,7 +696,7 @@ const StoreListRow: React.FC<StoreCardProps> = ({
       
       <td className="px-6 py-4 whitespace-nowrap">
         <div className="flex flex-wrap gap-1">
-          {Object.entries(store.openingHours).map(([day, hours]) => (
+          {Object.entries(store?.openingHours || {}).map(([day, hours]) => (
             <span
               key={day}
               className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs ${
@@ -752,7 +758,7 @@ const StoreCompactCard: React.FC<{
   onDuplicate,
   getOperatingStatus
 }) => {
-  const operatingStatus = getOperatingStatus(store.openingHours);
+  const operatingStatus = getOperatingStatus(store?.openingHours || {});
   
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-sm transition-shadow">

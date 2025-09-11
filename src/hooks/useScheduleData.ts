@@ -137,10 +137,9 @@ export const useScheduleData = () => {
     return true;
   };
 
-  const addEmployee = (employee: Omit<Employee, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const addEmployee = (employee: Omit<Employee, 'createdAt' | 'updatedAt'>) => {
     const newEmployee: Employee = {
       ...employee,
-      id: crypto.randomUUID(),
       createdAt: new Date(),
       updatedAt: new Date()
     };

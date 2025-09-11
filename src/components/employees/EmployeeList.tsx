@@ -43,8 +43,18 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
       employee.storeId === storeFilter ||
       (storeFilter === 'unassigned' && !employee.storeId);
 
+    // DEBUG: Log del filtro negozio
+    if (storeFilter !== 'all') {
+      console.log(`🔍 FILTER DEBUG - Employee: ${employee.firstName} ${employee.lastName}, storeId: ${employee.storeId}, storeFilter: ${storeFilter}, matches: ${matchesStore}`);
+    }
+
     return matchesSearch && matchesStatus && matchesStore;
   });
+
+  // DEBUG: Log del risultato finale
+  if (storeFilter !== 'all') {
+    console.log(`📊 FILTER RESULT - Total employees: ${employees.length}, Filtered: ${filteredEmployees.length}, Store filter: ${storeFilter}`);
+  }
 
   const storeOptions = [
     { value: 'all', label: 'Tutti i Negozi' },

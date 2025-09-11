@@ -250,12 +250,8 @@ export class CompanyApiService {
   static async fetchActiveEmployees(): Promise<CompanyApiEmployee[]> {
     const credentials = this.getCredentials();
     
-    // Se siamo in modalità mock, usa i dati di test
-    if (credentials.useMock) {
-      await this.delay(1000); // Simula latenza di rete
-      console.log('🔄 Usando dati MOCK per testing');
-      return MOCK_COMPANY_EMPLOYEES.filter(emp => emp.status === 'active');
-    }
+    // SEMPRE USA DATI REALI DA ECOSAGILE - NO MOCK MAI PIU'!
+    console.log('🌐 FETCHING DATI REALI DA ECOSAGILE - NO MOCK!');
 
     // Chiamata API EcosAgile reale
     try {
@@ -481,23 +477,42 @@ export class CompanyApiService {
 
   // Pulisci cache (per debug o reset)
   static clearCache(): void {
+    console.log('🗑️ CANCELLANDO TUTTA LA CACHE MOCK - FORZANDO DATI REALI ECOSAGILE!');
     localStorage.removeItem('hr-api-employees-cache');
     localStorage.removeItem('hr-sync-config');
+    localStorage.removeItem('hr-raw-api-debug-data');
+    // Rimuovi anche eventuali altri residui mock
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.includes('mock') || key.includes('test') || key.includes('demo')) {
+        console.log(`🗑️ Rimuovendo chiave mock: ${key}`);
+        localStorage.removeItem(key);
+      }
+    });
   }
 
   // Fetch con cache intelligente
-  static async fetchActiveEmployeesWithCache(): Promise<CompanyApiEmployee[]> {
-    // Prima prova a usare la cache
-    const cachedEmployees = this.getApiEmployeesCache();
-    if (cachedEmployees) {
-      console.log(`✅ Usando ${cachedEmployees.length} dipendenti dalla cache locale`);
-      return cachedEmployees;
+  static async fetchActiveEmployeesWithCache(forceRefresh: boolean = false): Promise<CompanyApiEmployee[]> {
+    // Se è richiesto il refresh forzato, cancella prima la cache
+    if (forceRefresh) {
+      console.log('🗑️ FORCE REFRESH - cancellando cache e fetching dati freschi...');
+      this.clearCache();
     }
 
-    // Se cache non disponibile, fetch da API e salva in cache
-    console.log('🔄 Cache non disponibile, fetch da API...');
+    // Prima prova a usare la cache (se non è stato forzato il refresh)
+    if (!forceRefresh) {
+      const cachedEmployees = this.getApiEmployeesCache();
+      if (cachedEmployees) {
+        console.log(`✅ Usando ${cachedEmployees.length} dipendenti dalla cache locale`);
+        return cachedEmployees;
+      }
+    }
+
+    // Fetch da API e salva in cache
+    console.log('🔄 Fetching dati FRESCHI da EcosAgile API...');
     const freshEmployees = await this.fetchActiveEmployees();
     this.saveApiEmployeesCache(freshEmployees);
+    console.log(`✅ Ottenuti ${freshEmployees.length} dipendenti FRESCHI da EcosAgile API`);
     return freshEmployees;
   }
 

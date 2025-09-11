@@ -48,6 +48,7 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
   const [step, setStep] = useState<'fetch' | 'preview' | 'import'>('fetch');
   const [filterDepartment, setFilterDepartment] = useState('');
   const [filterName, setFilterName] = useState('');
+  const [selectedStoreFilter, setSelectedStoreFilter] = useState(''); // Filtro per negozio
   const [defaultStoreId, setDefaultStoreId] = useState(() => {
     // Carica il defaultStoreId salvato, altrimenti usa il primo store
     const syncConfig = CompanyApiService.getSyncConfig();
@@ -62,73 +63,38 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
     new: 0
   });
 
-  // Regole di mapping intelligente con priorità per unità organizzativa
-  const smartMapping = (employee: CompanyApiEmployee): { storeId: string; storeName: string; confidence: 'high' | 'medium' | 'low' } => {
-    const dept = employee.department.toLowerCase();
-    const position = employee.position.toLowerCase();
-    const orgUnit = (employee.organizationalUnit || '').toLowerCase();
+  // MAPPING SEMPLICE: organizationalUnit contiene nome negozio
+  const simpleMapping = (employee: CompanyApiEmployee): { storeId: string; storeName: string; confidence: 'high' | 'medium' | 'low' } => {
+    const orgUnit = employee.organizationalUnit || '';
     
-    console.log(`🔍 Mapping per ${employee.firstName} ${employee.lastName}:`, {
-      organizationalUnit: employee.organizationalUnit,
-      storeCode: employee.storeCode,
-      storeName: employee.storeName,
-      department: employee.department,
-      workLocation: employee.workLocation
-    });
-
-    // 1. PRIORITÀ MASSIMA: Unità Organizzativa dal gestionale
-    if (employee.organizationalUnit) {
-      for (const store of stores) {
-        const storeName = store.name.toLowerCase();
-        
-        // Match diretto con unità organizzativa
-        if (orgUnit.includes(storeName) || storeName.includes(orgUnit)) {
-          console.log(`✅ Match diretto unità organizzativa: ${employee.organizationalUnit} → ${store.name}`);
-          return { storeId: store.id, storeName: store.name, confidence: 'high' };
-        }
-        
-        // Match parziale con parole chiave dell'unità organizzativa
-        const orgWords = orgUnit.split(' ');
-        const storeWords = storeName.split(' ');
-        const hasCommonWords = orgWords.some(word => 
-          word.length > 3 && storeWords.some(storeWord => storeWord.includes(word) || word.includes(storeWord))
-        );
-        
-        if (hasCommonWords) {
-          console.log(`🎯 Match parziale unità organizzativa: ${employee.organizationalUnit} → ${store.name}`);
-          return { storeId: store.id, storeName: store.name, confidence: 'high' };
-        }
-      }
-    }
-
-    // 2. StoreCode/StoreName dal gestionale 
-    if (employee.storeCode || employee.storeName) {
-      for (const store of stores) {
-        const storeName = store.name.toLowerCase();
-        const storeNameFromApi = (employee.storeName || '').toLowerCase();
-        
-        if (storeNameFromApi && (storeName.includes(storeNameFromApi) || storeNameFromApi.includes(storeName))) {
-          console.log(`🏪 Match nome negozio: ${employee.storeName} → ${store.name}`);
-          return { storeId: store.id, storeName: store.name, confidence: 'high' };
-        }
-      }
-    }
-
-    // 3. Fallback: Cerca corrispondenza con il dipartimento (confidence media)
+    console.log(`🔍 MAPPING: ${employee.firstName} ${employee.lastName} - orgUnit: "${orgUnit}"`);
+    console.log(`🏪 NEGOZI DISPONIBILI:`, stores.map(s => s.name));
+    
+    // PRIMA: Cerca match esatto
     for (const store of stores) {
-      const storeName = store.name.toLowerCase();
-      if (storeName.includes(dept) || dept.includes(storeName.split(' ')[0])) {
-        console.log(`📝 Match dipartimento: ${employee.department} → ${store.name}`);
+      if (store.name.toLowerCase().trim() === orgUnit.toLowerCase().trim()) {
+        console.log(`✅ MATCH ESATTO: "${orgUnit}" = "${store.name}"`);
+        return { storeId: store.id, storeName: store.name, confidence: 'high' };
+      }
+    }
+    
+    // SECONDA: Cerca match parziale (solo se orgUnit contiene il nome del negozio)
+    for (const store of stores) {
+      const storeLower = store.name.toLowerCase().trim();
+      const orgLower = orgUnit.toLowerCase().trim();
+      
+      if (orgLower.includes(storeLower) && storeLower.length > 3) {
+        console.log(`✅ MATCH PARZIALE: "${orgUnit}" contiene "${store.name}"`);
         return { storeId: store.id, storeName: store.name, confidence: 'medium' };
       }
     }
-
-    // 4. Fallback al negozio di default con confidence bassa
-    console.log(`⚠️ Nessun match trovato, usando negozio di default per ${employee.firstName} ${employee.lastName}`);
-    const defaultStore = stores.find(s => s.id === defaultStoreId) || stores[0];
+    
+    // Nessun match - primo negozio
+    const firstStore = stores[0];
+    console.log(`❌ NO MATCH: "${orgUnit}" → Default: "${firstStore?.name}"`);
     return { 
-      storeId: defaultStore?.id || '', 
-      storeName: defaultStore?.name || 'Nessun negozio', 
+      storeId: firstStore?.id || '', 
+      storeName: firstStore?.name || 'Default', 
       confidence: 'low' 
     };
   };
@@ -140,18 +106,11 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
       // Salva la configurazione del negozio di default
       CompanyApiService.saveSyncConfig({ defaultStoreId });
       
-      let employees;
-      if (forceRefresh) {
-        // Forza il refresh bypassando la cache
-        console.log('🔄 Forzando refresh da API...');
-        employees = await CompanyApiService.fetchActiveEmployees();
-        CompanyApiService.saveApiEmployeesCache(employees);
-      } else {
-        employees = await CompanyApiService.fetchActiveEmployeesWithCache();
-      }
+      // Usa sempre il metodo con cache intelligente che supporta forceRefresh
+      const employees = await CompanyApiService.fetchActiveEmployeesWithCache(forceRefresh);
       
       const mappedEmployees: EmployeeWithMapping[] = employees.map(emp => {
-        const mapping = smartMapping(emp);
+        const mapping = simpleMapping(emp);
         const existingEmp = existingEmployees.find(existing => 
           existing.id === emp.employeeId || 
           existing.email.toLowerCase() === emp.email.toLowerCase()
@@ -164,7 +123,7 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
           mappingConfidence: mapping.confidence,
           isConflict: !!existingEmp,
           existingEmployee: existingEmp,
-          shouldImport: !existingEmp // Di default, importa solo quelli nuovi
+          shouldImport: true // SEMPLICE: Seleziona tutti per default
         };
       });
 
@@ -178,28 +137,20 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
     }
   };
 
-  // Calcola statistiche
-  const calculateStats = (employees: EmployeeWithMapping[]) => {
-    const filtered = employees.filter(emp => {
-      const matchesDepartment = !filterDepartment || 
-        emp.department.toLowerCase().includes(filterDepartment.toLowerCase());
-      const matchesName = !filterName || 
-        `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(filterName.toLowerCase());
-      return matchesDepartment && matchesName;
-    });
-
+  // STATISTICHE SEMPLIFICATE: Sempre sui dipendenti visibili/filtrati
+  const calculateStats = () => {
     setStats({
-      total: employees.length,
-      selected: employees.filter(emp => emp.shouldImport).length,
-      conflicts: employees.filter(emp => emp.isConflict).length,
-      new: employees.filter(emp => !emp.isConflict).length
+      total: filteredEmployees.length,
+      selected: filteredEmployees.filter(emp => emp.shouldImport).length,
+      conflicts: filteredEmployees.filter(emp => emp.isConflict).length,
+      new: filteredEmployees.filter(emp => !emp.isConflict).length
     });
   };
 
-  // Aggiorna stats quando cambiano le selezioni
+  // Aggiorna stats quando cambiano dipendenti o filtro negozio
   useEffect(() => {
-    calculateStats(apiEmployees);
-  }, [apiEmployees, filterDepartment, filterName]);
+    calculateStats();
+  }, [apiEmployees, selectedStoreFilter]);
 
   // Toggle selezione dipendente
   const toggleEmployeeSelection = (employeeId: string) => {
@@ -229,11 +180,27 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
     );
   };
 
-  // Importa dipendenti selezionati
+  // Importa dipendenti selezionati (solo quelli VISIBILI e SELEZIONATI)
   const importSelectedEmployees = async () => {
     setImporting(true);
     try {
-      const toImport = apiEmployees.filter(emp => emp.shouldImport);
+      // IMPORTANTE: Usa filteredEmployees (quelli visibili) E che sono selezionati
+      const toImport = filteredEmployees.filter(emp => emp.shouldImport);
+      
+      console.log(`🚀 IMPORT - Dipendenti da importare:`, toImport.map(e => ({
+        nome: `${e.firstName} ${e.lastName}`,
+        email: e.email,
+        orgUnit: e.organizationalUnit,
+        storeId: e.suggestedStoreId,
+        storeName: e.suggestedStoreName,
+        shouldImport: e.shouldImport
+      })));
+      
+      if (toImport.length === 0) {
+        alert('⚠️ Nessun dipendente selezionato per l\'importazione!');
+        setImporting(false);
+        return;
+      }
       
       // Salva gli ID dei dipendenti importati e timestamp
       const importedIds = toImport.map(emp => emp.employeeId);
@@ -263,13 +230,21 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
         updatedAt: new Date()
       }));
 
-      console.log('📤 EmployeeSyncModal - Inviando questi dipendenti per l\'import:', hrEmployees.map(e => ({
-        id: e.id,
+      // DEBUG: Verifica storeId per ogni dipendente
+      console.log('🔍 VERIFICA STOREID:', hrEmployees.map(e => ({
         nome: `${e.firstName} ${e.lastName}`,
-        email: e.email,
         storeId: e.storeId,
-        shouldImport: toImport.find(api => api.employeeId === e.id)?.shouldImport
+        storeName: stores.find(s => s.id === e.storeId)?.name || 'NEGOZIO NON TROVATO',
+        orgUnit: toImport.find(api => api.employeeId === e.id)?.organizationalUnit
       })));
+
+      // Conta dipendenti per storeId
+      const storeIdCounts = hrEmployees.reduce((acc, e) => {
+        acc[e.storeId] = (acc[e.storeId] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      console.log('📊 DISTRIBUZIONE DIPENDENTI PER STOREID:', storeIdCounts);
       
       onEmployeesImport(hrEmployees);
       setStep('import');
@@ -291,14 +266,22 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
   // Filtro dipartimenti disponibili
   const availableDepartments = [...new Set(apiEmployees.map(emp => emp.department))];
 
-  // Filtra dipendenti per dipartimento e nome
-  const filteredEmployees = apiEmployees.filter(emp => {
-    const matchesDepartment = !filterDepartment || 
-      emp.department.toLowerCase().includes(filterDepartment.toLowerCase());
-    const matchesName = !filterName || 
-      `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(filterName.toLowerCase());
-    return matchesDepartment && matchesName;
-  });
+  // FILTRO SEMPLICE: Solo per negozio se selezionato
+  const filteredEmployees = selectedStoreFilter 
+    ? apiEmployees.filter(emp => {
+        const matches = emp.suggestedStoreId === selectedStoreFilter;
+        if (selectedStoreFilter) {
+          console.log(`🔍 FILTRO: ${emp.firstName} ${emp.lastName} - storeId: ${emp.suggestedStoreId} vs filter: ${selectedStoreFilter} = ${matches}`);
+        }
+        return matches;
+      })
+    : apiEmployees;
+
+  // DEBUG: Log dei risultati del filtro
+  if (selectedStoreFilter) {
+    console.log(`📊 FILTRO RISULTATO: ${filteredEmployees.length} dipendenti su ${apiEmployees.length} totali per store ${selectedStoreFilter}`);
+    console.log(`🏪 STORE SELEZIONATO:`, stores.find(s => s.id === selectedStoreFilter)?.name);
+  }
 
   return (
     <Modal
@@ -381,16 +364,30 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
               </Button>
 
               {CompanyApiService.getApiEmployeesCache() && (
-                <Button
-                  onClick={() => fetchApiEmployees(true)}
-                  disabled={loading}
-                  variant="outline"
-                  icon={RefreshCw}
-                  size="lg"
-                  className="text-orange-600 border-orange-300 hover:bg-orange-50"
-                >
-                  Forza Refresh
-                </Button>
+                <>
+                  <Button
+                    onClick={() => fetchApiEmployees(true)}
+                    disabled={loading}
+                    variant="outline"
+                    icon={RefreshCw}
+                    size="lg"
+                    className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                  >
+                    Forza Refresh
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      CompanyApiService.clearCache();
+                      alert('✅ Cache MOCK cancellata! Ora puoi recuperare i dati REALI da EcosAgile.');
+                    }}
+                    disabled={loading}
+                    variant="outline"
+                    size="lg"
+                    className="text-red-600 border-red-300 hover:bg-red-50"
+                  >
+                    Cancella Cache
+                  </Button>
+                </>
               )}
             </div>
           </div>
@@ -477,65 +474,18 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
                   })()}
                 </Button>
 
-                {/* Filtro e selezione per negozio */}
+                {/* FILTRO NEGOZIO SEMPLIFICATO */}
                 <Select
-                  value=""
+                  value={selectedStoreFilter}
                   onChange={(storeId) => {
-                    if (!storeId) return;
-                    
-                    // Trova il negozio selezionato
-                    const selectedStore = stores.find(s => s.id === storeId);
-                    if (!selectedStore) return;
-                    
-                    console.log(`🏪 Selezionato negozio: ${selectedStore.name} (${storeId})`);
-                    
-                    // 1. Reset filtri esistenti
-                    setFilterName(''); 
-                    setFilterDepartment(''); 
-                    
-                    // 2. Trova tutti i dipendenti mappati a questo negozio
-                    const employeesForStore = apiEmployees.filter(emp => 
-                      emp.suggestedStoreId === storeId
-                    );
-                    
-                    console.log(`📋 Trovati ${employeesForStore.length} dipendenti per ${selectedStore.name}`);
-                    console.log(`🔍 Dettaglio dipendenti:`, employeesForStore.map(e => ({
-                      nome: `${e.firstName} ${e.lastName}`,
-                      orgUnit: e.organizationalUnit,
-                      suggestedStore: e.suggestedStoreName
-                    })));
-                    
-                    if (employeesForStore.length > 0) {
-                      // 3. DESELEZIONA tutto e SELEZIONA solo quelli del negozio
-                      setApiEmployees(prev => prev.map(emp => {
-                        const isForThisStore = emp.suggestedStoreId === storeId;
-                        return { ...emp, shouldImport: isForThisStore };
-                      }));
-                      
-                      // 4. APPLICA FILTRO per nome usando l'unità organizzativa comune
-                      const commonOrgUnit = employeesForStore[0]?.organizationalUnit;
-                      if (commonOrgUnit) {
-                        setFilterName(commonOrgUnit);
-                        console.log(`🔍 Applicato filtro per unità organizzativa: "${commonOrgUnit}"`);
-                      }
-                      
-                      console.log(`✅ Selezionati ${employeesForStore.length} dipendenti per ${selectedStore.name}`);
-                    } else {
-                      alert(`⚠️ Nessun dipendente trovato per il negozio "${selectedStore.name}"`);
-                    }
+                    setSelectedStoreFilter(storeId || '');
                   }}
                   options={[
-                    { value: '', label: '🏪 Filtra per Negozio...' },
-                    ...stores.map(store => {
-                      const count = apiEmployees.filter(emp => 
-                        emp.suggestedStoreId === store.id ||
-                        (emp.organizationalUnit || '').toLowerCase().includes(store.name.toLowerCase())
-                      ).length;
-                      return {
-                        value: store.id,
-                        label: `${store.name} (${count})`
-                      };
-                    }).filter(option => !option.label.includes('(0)'))
+                    { value: '', label: '🏪 Tutti i Negozi' },
+                    ...stores.map(store => ({
+                      value: store.id,
+                      label: store.name
+                    }))
                   ]}
                   size="sm"
                 />

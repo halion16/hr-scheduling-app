@@ -254,7 +254,6 @@ function AppContent() {
         });
         updatedCount++;
       } else {
-        console.log(`➕ Aggiungendo nuovo dipendente: ${emp.firstName} ${emp.lastName} (${emp.email})`);
         // Aggiungi nuovo dipendente
         addEmployee({
           firstName: emp.firstName,
