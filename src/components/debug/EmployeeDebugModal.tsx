@@ -9,7 +9,9 @@ import {
   RefreshCw,
   Database,
   Filter,
-  Eye
+  Eye,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 
 interface EmployeeDebugModalProps {
@@ -22,6 +24,7 @@ export const EmployeeDebugModal: React.FC<EmployeeDebugModalProps> = ({
   onClose
 }) => {
   const [employees, setEmployees] = useState<CompanyApiEmployee[]>([]);
+  const [rawApiData, setRawApiData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('');
   const [orgUnitFilter, setOrgUnitFilter] = useState('');
@@ -77,16 +80,27 @@ export const EmployeeDebugModal: React.FC<EmployeeDebugModalProps> = ({
           <div className="flex items-center mb-3">
             <Bug className="h-5 w-5 text-blue-600 mr-2" />
             <h3 className="font-medium text-blue-900">Analisi Dati EcosAgile</h3>
-            <Button
-              onClick={fetchDebugData}
-              disabled={loading}
-              variant="outline"
-              size="sm"
-              icon={loading ? undefined : RefreshCw}
-              className="ml-auto"
-            >
-              {loading ? 'Aggiornando...' : 'Aggiorna'}
-            </Button>
+            <div className="flex space-x-2 ml-auto">
+              <Button
+                onClick={() => CompanyApiService.exportRawDataToExcel()}
+                variant="outline"
+                size="sm"
+                icon={FileSpreadsheet}
+                className="text-green-600 border-green-300 hover:bg-green-50"
+              >
+                Export Excel
+              </Button>
+              
+              <Button
+                onClick={fetchDebugData}
+                disabled={loading}
+                variant="outline"
+                size="sm"
+                icon={loading ? undefined : RefreshCw}
+              >
+                {loading ? 'Aggiornando...' : 'Aggiorna'}
+              </Button>
+            </div>
           </div>
           
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">

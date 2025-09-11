@@ -304,6 +304,10 @@ export class CompanyApiService {
         }
       }
       
+      // SALVA I DATI GREZZI PER DEBUG
+      this.saveRawApiData(employees);
+      console.log(`🔍 DEBUG - Salvati ${employees.length} dipendenti grezzi da EcosAgile`);
+      
       // Converte dal formato EcosAgile al formato standard
       const mappedEmployees = employees
         .filter(emp => !emp.Delete || emp.Delete === '0')
@@ -317,7 +321,13 @@ export class CompanyApiService {
       
       // Fallback ai dati mock in caso di errore
       await this.delay(500);
-      return MOCK_COMPANY_EMPLOYEES.filter(emp => emp.status === 'active');
+      const mockEmployees = MOCK_COMPANY_EMPLOYEES.filter(emp => emp.status === 'active');
+      
+      // SALVA ANCHE I MOCK COME DATI GREZZI PER DEBUG
+      this.saveRawApiData(mockEmployees);
+      console.log(`🔍 DEBUG - Usando ${mockEmployees.length} dipendenti mock come fallback`);
+      
+      return mockEmployees;
     }
   }
 
@@ -488,5 +498,90 @@ export class CompanyApiService {
     const freshEmployees = await this.fetchActiveEmployees();
     this.saveApiEmployeesCache(freshEmployees);
     return freshEmployees;
+  }
+
+  // ========== GESTIONE DATI GREZZI PER DEBUG ==========
+  
+  // Salva i dati grezzi della API per debug
+  static saveRawApiData(rawData: any[]): void {
+    const debugData = {
+      rawEmployees: rawData,
+      timestamp: Date.now(),
+      source: rawData.length === 6 ? 'mock' : 'api'
+    };
+    localStorage.setItem('hr-raw-api-debug', JSON.stringify(debugData));
+    console.log(`🔍 DEBUG - Salvati ${rawData.length} dipendenti grezzi (${debugData.source})`);
+  }
+
+  // Recupera i dati grezzi per debug
+  static getRawApiData(): any[] {
+    try {
+      const saved = localStorage.getItem('hr-raw-api-debug');
+      if (!saved) return [];
+      
+      const debugData = JSON.parse(saved);
+      console.log(`🔍 DEBUG - Recuperati ${debugData.rawEmployees.length} dipendenti grezzi da ${debugData.source}`);
+      return debugData.rawEmployees || [];
+    } catch (error) {
+      console.error('❌ Errore recupero dati grezzi:', error);
+      return [];
+    }
+  }
+
+  // Export Excel dei dati grezzi
+  static exportRawDataToExcel(): void {
+    const rawData = this.getRawApiData();
+    if (rawData.length === 0) {
+      alert('❌ Nessun dato grezzo disponibile. Esegui prima una sincronizzazione.');
+      return;
+    }
+
+    // Ottieni tutti i possibili campi da tutti i dipendenti
+    const allFields = new Set<string>();
+    rawData.forEach(employee => {
+      Object.keys(employee).forEach(key => allFields.add(key));
+    });
+
+    const fieldsList = Array.from(allFields).sort();
+    
+    // Crea i dati per l'Excel
+    const excelData = rawData.map((employee, index) => {
+      const row: any = { '_RECORD_NUMBER': index + 1 };
+      
+      // Aggiungi tutti i campi possibili
+      fieldsList.forEach(field => {
+        const value = employee[field];
+        row[field] = value !== undefined && value !== null ? String(value) : '';
+      });
+      
+      return row;
+    });
+
+    // Crea CSV (Excel compatibile)
+    const headers = ['_RECORD_NUMBER', ...fieldsList];
+    let csvContent = headers.join('\t') + '\n';
+    
+    excelData.forEach(row => {
+      const values = headers.map(header => {
+        const value = row[header] || '';
+        // Escape per caratteri speciali in CSV
+        return typeof value === 'string' && value.includes('\t') ? `"${value}"` : value;
+      });
+      csvContent += values.join('\t') + '\n';
+    });
+
+    // Download del file
+    const blob = new Blob([csvContent], { type: 'text/tab-separated-values;charset=utf-8' });
+    const link = document.createElement('a');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    link.href = URL.createObjectURL(blob);
+    link.download = `EcosAgile_RawData_${timestamp}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    console.log(`📊 EXPORT EXCEL - Esportati ${excelData.length} dipendenti con ${fieldsList.length} campi`);
+    console.log(`📋 CAMPI TROVATI:`, fieldsList);
+    alert(`✅ Export completato!\n\nFile: EcosAgile_RawData_${timestamp}.xls\nDipendenti: ${excelData.length}\nCampi: ${fieldsList.length}\n\nTutti i campi grezzi dalla API sono inclusi!`);
   }
 }
