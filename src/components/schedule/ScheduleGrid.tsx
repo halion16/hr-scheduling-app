@@ -119,11 +119,6 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
       return isInWeek && isForStore;
     });
 
-    console.log(`📊 Turni settimana ${weekStart.toLocaleDateString()}:`, {
-      totali: shifts.length,
-      settimana: filteredShifts.length,
-      negozio: store.name
-    });
 
     return filteredShifts;
   }, [shifts, weekStart, store.id, weeklyShiftsSignature, forceUpdateKey]);

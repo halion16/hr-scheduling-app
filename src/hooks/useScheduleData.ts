@@ -10,10 +10,6 @@ const useVisibilityChange = () => {
   useEffect(() => {
     const handleVisibilityChange = () => {
       setIsVisible(!document.hidden);
-      
-      if (!document.hidden) {
-        console.log('🎯 App diventata visibile - controllo integrità dati...');
-      }
     };
     
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -32,40 +28,26 @@ export const useScheduleData = () => {
   const [shifts, setShifts, refreshShifts] = useLocalStorage<Shift[]>('hr-shifts', []);
   const [unavailabilities, setUnavailabilities, refreshUnavailabilities] = useLocalStorage<EmployeeUnavailability[]>('hr-unavailabilities', []);
 
-  // 🆕 FORCE INITIAL DATA LOAD ON MOUNT
+  // Force initial data load on mount (only once)
   useEffect(() => {
-    console.log('🚀 useScheduleData mounted - forcing data refresh...');
-    
-    // Force load data from localStorage immediately
-    setTimeout(() => {
-      refreshEmployees();
-      refreshStores(); 
-      refreshShifts();
-      refreshUnavailabilities();
-    }, 100);
-  }, []);
+    refreshEmployees();
+    refreshStores(); 
+    refreshShifts();
+    refreshUnavailabilities();
+  }, []); // Empty dependency array - only run once on mount
 
-  // 🆕 FUNCTION TO REFRESH ALL DATA FROM LOCALSTORAGE
+  // Function to refresh all data from localStorage
   const refreshAllData = () => {
-    console.log('🔄 Refreshing all data from localStorage...');
     refreshEmployees();
     refreshStores();
     refreshShifts();
     refreshUnavailabilities();
-    console.log('✅ All data refreshed');
   };
   
   const isVisible = useVisibilityChange();
 
-  // DATA INTEGRITY CHECK on component mount
+  // Data integrity check - only when data actually changes
   useEffect(() => {
-    console.log('🔍 Performing data integrity check...', { 
-      trigger: 'mount',
-      visible: isVisible,
-      employees: employees.length,
-      stores: stores.length,
-      shifts: shifts.length
-    });
     
     // Check for data corruption and repair if needed
     const corruptedShifts = shifts.filter(shift => {
@@ -76,15 +58,12 @@ export const useScheduleData = () => {
     });
     
     if (corruptedShifts.length > 0) {
-      console.error(`🚨 Found ${corruptedShifts.length} corrupted shifts - attempting repair...`);
-      
       const repairedShifts = shifts.map(shift => {
         if (!shift || !shift.id) return null;
         
         // Repair corrupted dates
         const repaired = { ...shift };
         if (!shift.date || !(shift.date instanceof Date) || isNaN(shift.date.getTime())) {
-          console.warn(`🔧 Repairing corrupted date for shift ${shift.id}`);
           repaired.date = new Date();
         }
         
@@ -102,7 +81,6 @@ export const useScheduleData = () => {
         
         // Ensure required fields
         if (!shift.employeeId || !shift.storeId) {
-          console.warn(`🗑️ Removing shift with missing required fields:`, shift.id);
           return null;
         }
         
@@ -110,31 +88,28 @@ export const useScheduleData = () => {
       }).filter(Boolean) as Shift[];
       
       if (repairedShifts.length !== shifts.length) {
-        console.log(`🛠️ Repaired data: ${shifts.length} -> ${repairedShifts.length} shifts`);
         setShifts(repairedShifts);
       }
-    } else {
-      console.log('✅ Data integrity check passed');
     }
-  }, [isVisible]); // Run on mount and when tab becomes visible
+  }, [shifts.length]); // Only run when shifts array length changes
 
-  // Force refresh when tab becomes visible
+  // Force refresh when tab becomes visible (but not on initial mount)
+  const [hasInitialized, setHasInitialized] = useState(false);
   useEffect(() => {
-    if (isVisible) {
-      console.log('👁️ Tab became visible - refreshing data...');
+    if (isVisible && hasInitialized) {
       refreshAllData();
+    } else if (!hasInitialized) {
+      setHasInitialized(true);
     }
-  }, [isVisible]);
+  }, [isVisible, hasInitialized]);
 
   // Helper function to validate shift data before operations
   const validateShiftData = (shiftData: any): boolean => {
     if (!shiftData || typeof shiftData !== 'object') {
-      console.error('❌ Invalid shift data: not an object');
       return false;
     }
     
     if (!shiftData.employeeId || !shiftData.storeId) {
-      console.error('❌ Invalid shift data: missing required IDs');
       return false;
     }
     

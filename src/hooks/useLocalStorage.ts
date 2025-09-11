@@ -9,7 +9,6 @@ const initBroadcastChannel = () => {
   if (typeof BroadcastChannel !== 'undefined' && !broadcastChannel) {
     try {
       broadcastChannel = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
-      console.log('📡 BroadcastChannel initialized for cross-domain sync');
     } catch (error) {
       console.warn('⚠️ BroadcastChannel not available:', error);
     }
@@ -25,7 +24,6 @@ const useCrossTabSync = (key: string, setValue: (value: any) => void) => {
     // Listener per BroadcastChannel (cross-domain)
     const handleBroadcastMessage = (event: MessageEvent) => {
       if (event.data.type === 'storage-update' && event.data.key === key) {
-        console.log(`📡 BroadcastChannel sync for "${key}":`, event.data.value?.substring(0, 100) + '...');
         try {
           const parsed = JSON.parse(event.data.value, (key, value) => {
             const dateFields = ['date', 'createdAt', 'updatedAt', 'startDate', 'endDate', 'lockedAt'];
@@ -58,7 +56,6 @@ const useCrossTabSync = (key: string, setValue: (value: any) => void) => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === key && e.newValue !== null) {
         try {
-          console.log(`🔄 LocalStorage sync detected for "${key}"`, e.newValue?.substring(0, 100) + '...');
           
           // Enhanced reviver function (same as in main hook)
           const parsed = JSON.parse(e.newValue, (key, value) => {
@@ -109,10 +106,8 @@ const useCrossTabSync = (key: string, setValue: (value: any) => void) => {
             });
             
             setValue(cleanedArray);
-            console.log(`✅ Cross-tab sync: ${cleanedArray.length} items loaded for "${key}"`);
           } else {
             setValue(parsed);
-            console.log(`✅ Cross-tab sync: loaded "${key}" (${typeof parsed})`);
           }
           
         } catch (error) {
@@ -164,12 +159,9 @@ const forceRefreshFromStorage = (key: string): any => {
 export function useLocalStorage<T>(key: string, initialValue: T) {
   // 🆕 IMPROVED INITIAL STATE LOADING
   const [storedValue, setStoredValue] = useState<T>(() => {
-    console.log(`🔍 Initial load for "${key}"`);
-    
     try {
       const item = window.localStorage.getItem(key);
       if (item) {
-        console.log(`📂 Found data for "${key}":`, item.length, 'characters');
         
         // Enhanced reviver function
         const parsed = JSON.parse(item, (key, value) => {
@@ -211,26 +203,18 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
             return true;
           });
           
-          if (cleanedArray.length !== parsed.length) {
-            console.warn(`🧹 Cleaned ${parsed.length - cleanedArray.length} corrupted items`);
-          }
-          
-          console.log(`✅ Loaded "${key}": ${cleanedArray.length} items`);
           return cleanedArray as T;
         }
         
-        console.log(`✅ Loaded "${key}":`, typeof parsed);
         return parsed;
       }
       
-      console.log(`🆕 Using default value for "${key}"`);
       return initialValue;
     } catch (error) {
       console.error(`❌ Error loading "${key}":`, error);
       
       try {
         window.localStorage.removeItem(key);
-        console.log(`🗑️ Cleared corrupted data for "${key}"`);
       } catch (clearError) {
         console.error(`❌ Failed to clear data:`, clearError);
       }
@@ -254,8 +238,6 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
       setStoredValue(valueToStore);
       window.localStorage.setItem(key, serializedValue);
       
-      console.log(`💾 Saved "${key}":`, Array.isArray(valueToStore) ? `Array[${valueToStore.length}]` : typeof valueToStore);
-      
       // 🆕 FORCE CROSS-TAB UPDATE - Trigger storage event manually AND BroadcastChannel
       setTimeout(() => {
         // Trigger storage event for same-domain tabs
@@ -275,7 +257,6 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
             value: serializedValue,
             timestamp: new Date().toISOString()
           });
-          console.log(`📡 Broadcasted "${key}" update to cross-domain tabs`);
         }
       }, 0);
       
@@ -286,13 +267,9 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
 
   // 🆕 MANUAL REFRESH FUNCTION
   const refreshFromStorage = () => {
-    console.log(`🔄 Manual refresh requested for "${key}"`);
     const freshData = forceRefreshFromStorage(key);
     if (freshData !== null) {
       setStoredValue(freshData);
-      console.log(`✅ Manual refresh completed for "${key}"`);
-    } else {
-      console.log(`ℹ️ No data found in localStorage for "${key}"`);
     }
   };
 

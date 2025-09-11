@@ -12,7 +12,6 @@ export class CCNLValidator {
 
   constructor(customRules: CCNLRestPeriodRule[] = []) {
     this.rules = [...CCNL_STANDARD_RULES, ...customRules].filter(rule => rule.isActive);
-    console.log('🏛️ CCNLValidator initialized with', this.rules.length, 'active rules');
   }
 
   /**
@@ -28,12 +27,6 @@ export class CCNLValidator {
     const violations: CCNLViolation[] = [];
     const shiftDate = proposedDate || shift.date;
     
-    console.log('🔍 CCNL validation for shift:', {
-      employee: `${employee.firstName} ${employee.lastName}`,
-      date: shiftDate.toLocaleDateString(),
-      time: `${shift.startTime}-${shift.endTime}`,
-      store: store?.name || 'No store provided'
-    });
 
     // 🏪 VERIFICA PREREQUISITI NEGOZIO
     if (store) {
@@ -58,11 +51,6 @@ export class CCNLValidator {
     const consecutiveDaysViolation = this.checkConsecutiveDaysLimit(shift, shiftDate, sortedShifts, employee);
     if (consecutiveDaysViolation) violations.push(consecutiveDaysViolation);
 
-    if (violations.length > 0) {
-      console.warn(`⚠️ CCNL violations found for ${employee.firstName} ${employee.lastName}:`, violations.length);
-    } else {
-      console.log(`✅ CCNL compliant shift for ${employee.firstName} ${employee.lastName}`);
-    }
 
     return violations;
   }

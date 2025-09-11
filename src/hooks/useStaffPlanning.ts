@@ -15,16 +15,6 @@ export const useStaffPlanning = () => {
   const [weightingEvents, setWeightingEvents] = useLocalStorage<WeightingEvent[]>('hr-weighting-events', []);
   const [staffRoles, setStaffRoles] = useLocalStorage<StaffRole[]>('hr-staff-roles', defaultRoles);
 
-  // 🔄 LOG AUTOMATICO PER DEBUG SINCRONIZZAZIONE
-  useEffect(() => {
-    console.log('📊 Staff requirements updated:', {
-      total: staffRequirements.length,
-      byStore: staffRequirements.reduce((acc, req) => {
-        acc[req.storeId] = (acc[req.storeId] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>)
-    });
-  }, [staffRequirements]);
 
   // Staff Requirements CRUD
   const addStaffRequirement = (requirement: Omit<StaffRequirement, 'id' | 'createdAt' | 'updatedAt'>) => {

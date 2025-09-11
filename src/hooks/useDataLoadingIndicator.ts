@@ -9,7 +9,6 @@ export const useDataLoadingIndicator = () => {
     const timer = setTimeout(() => {
       setIsLoading(false);
       setDataLoaded(true);
-      console.log('✅ Initial data loading completed');
     }, 1000);
     
     return () => clearTimeout(timer);

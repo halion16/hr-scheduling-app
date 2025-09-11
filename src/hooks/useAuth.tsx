@@ -160,7 +160,6 @@ export const useAuth = (): AuthContextType => {
   // Initialize users if empty
   useEffect(() => {
     if (users.length === 0) {
-      console.log('🔧 Initializing default users...');
       setUsers(DEFAULT_USERS);
     }
   }, [users.length, setUsers]);
@@ -174,7 +173,6 @@ export const useAuth = (): AuthContextType => {
         loading: false,
         error: null
       });
-      console.log('🔐 Session restored for:', currentSession.profile.email);
     } else {
       setState(prev => ({ ...prev, loading: false }));
     }
@@ -247,7 +245,6 @@ export const useAuth = (): AuthContextType => {
       error: null
     });
 
-    console.log('✅ Login successful for:', email, 'Role:', user.role);
     return { error: null };
   };
 
@@ -284,7 +281,6 @@ export const useAuth = (): AuthContextType => {
     localStorage.setItem('hr-auth-passwords', JSON.stringify(currentPasswords));
 
     setState(prev => ({ ...prev, loading: false }));
-    console.log('✅ User registered:', email);
     
     return { error: null };
   };
@@ -298,7 +294,6 @@ export const useAuth = (): AuthContextType => {
       loading: false,
       error: null
     });
-    console.log('🔓 User signed out');
   };
 
   // Update user profile

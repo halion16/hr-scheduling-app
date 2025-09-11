@@ -67,12 +67,8 @@ export const UnavailabilityManager: React.FC<UnavailabilityManagerProps> = ({ em
 
   const activeEmployees = employees.filter(emp => emp.isActive);
 
-  // 🔍 IMPROVED DATA VALIDATION AND COUNTING
+  // Improved data validation and counting
   const unavailabilityStats = useMemo(() => {
-    console.log('📊 Calculating unavailability stats...', {
-      totalUnavailabilities: unavailabilities.length,
-      activeEmployees: activeEmployees.length
-    });
     
     // Filter for current and future unavailabilities (not expired)
     const now = new Date();
@@ -97,13 +93,6 @@ export const UnavailabilityManager: React.FC<UnavailabilityManagerProps> = ({ em
     const approved = relevantUnavailabilities.filter(u => u.isApproved);
     const pending = relevantUnavailabilities.filter(u => !u.isApproved);
     const uniqueEmployees = new Set(relevantUnavailabilities.map(u => u.employeeId));
-    
-    console.log('📈 Stats calculated:', {
-      total: relevantUnavailabilities.length,
-      approved: approved.length,
-      pending: pending.length,
-      employees: uniqueEmployees.size
-    });
     
     return {
       total: relevantUnavailabilities.length,
