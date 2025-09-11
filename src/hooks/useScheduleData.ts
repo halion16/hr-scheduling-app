@@ -23,10 +23,13 @@ const useVisibilityChange = () => {
 };
 
 export const useScheduleData = () => {
-  const [employees, setEmployees, refreshEmployees] = useLocalStorage<Employee[]>('hr-employees', []);
-  const [stores, setStores, refreshStores] = useLocalStorage<Store[]>('hr-stores', []);
-  const [shifts, setShifts, refreshShifts] = useLocalStorage<Shift[]>('hr-shifts', []);
-  const [unavailabilities, setUnavailabilities, refreshUnavailabilities] = useLocalStorage<EmployeeUnavailability[]>('hr-unavailabilities', []);
+  // Flag per gestire importazioni in corso (blocca temporaneamente cross-tab sync)
+  const [isImporting, setIsImporting] = useState(false);
+  
+  const [employees, setEmployees, refreshEmployees] = useLocalStorage<Employee[]>('hr-employees', [], isImporting);
+  const [stores, setStores, refreshStores] = useLocalStorage<Store[]>('hr-stores', [], isImporting);
+  const [shifts, setShifts, refreshShifts] = useLocalStorage<Shift[]>('hr-shifts', [], isImporting);
+  const [unavailabilities, setUnavailabilities, refreshUnavailabilities] = useLocalStorage<EmployeeUnavailability[]>('hr-unavailabilities', [], isImporting);
 
   // Force initial data load on mount (only once)
   useEffect(() => {
@@ -142,13 +145,22 @@ export const useScheduleData = () => {
   };
 
   const addEmployee = (employee: Omit<Employee, 'createdAt' | 'updatedAt'>) => {
+    // Attiva flag importazione per bloccare cross-tab sync
+    setIsImporting(true);
+    
     const newEmployee: Employee = {
       ...employee,
       createdAt: new Date(),
       updatedAt: new Date()
     };
-    // Employee added successfully
+    
     setEmployees(prev => [...prev, newEmployee]);
+    
+    // Disattiva flag dopo 2 secondi per permettere sync normale
+    setTimeout(() => {
+      setIsImporting(false);
+    }, 2000);
+    
     return newEmployee;
   };
 

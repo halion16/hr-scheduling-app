@@ -16,8 +16,13 @@ const initBroadcastChannel = () => {
 };
 
 // Hook per sincronizzazione cross-tab
-const useCrossTabSync = (key: string, setValue: (value: any) => void) => {
+const useCrossTabSync = (key: string, setValue: (value: any) => void, isActive: boolean = true) => {
   useEffect(() => {
+    // Se non attivo, non configurare listeners
+    if (!isActive) {
+      return;
+    }
+    
     // Inizializza BroadcastChannel
     initBroadcastChannel();
     
@@ -125,7 +130,7 @@ const useCrossTabSync = (key: string, setValue: (value: any) => void) => {
         broadcastChannel.removeEventListener('message', handleBroadcastMessage);
       }
     };
-  }, [key, setValue]);
+  }, [key, setValue, isActive]);
 };
 
 // Forza refresh dati dal localStorage
@@ -156,7 +161,7 @@ const forceRefreshFromStorage = (key: string): any => {
   }
 };
 
-export function useLocalStorage<T>(key: string, initialValue: T) {
+export function useLocalStorage<T>(key: string, initialValue: T, disableSync = false) {
   // 🆕 IMPROVED INITIAL STATE LOADING
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
@@ -273,8 +278,9 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     }
   };
 
-  // Enable cross-tab synchronization - DISABILITATO TEMPORANEAMENTE per fix importazione
-  // useCrossTabSync(key, setStoredValue);
+  // Enable cross-tab synchronization - intelligente basato su flag
+  // SEMPRE chiamare il hook per rispettare Rules of Hooks, ma controllare se attivo
+  useCrossTabSync(key, setStoredValue, !disableSync);
 
   return [storedValue, setValue, refreshFromStorage] as const;
 }
