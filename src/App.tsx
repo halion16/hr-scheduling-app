@@ -28,11 +28,12 @@ import { Button } from './components/common/Button';
 import { RefreshDataButton } from './components/common/RefreshDataButton';
 import { ApiSettings } from './components/settings/ApiSettings';
 import { EmployeeSyncModal } from './components/employees/EmployeeSyncModal';
+import { EmployeeDebugModal } from './components/debug/EmployeeDebugModal';
 import { Users, Calendar, CalendarX } from 'lucide-react';
 import { exportScheduleToExcel, exportEmployeesToExcel } from './utils/exportUtils';
 import { getStartOfWeek, getEndOfWeek } from './utils/timeUtils';
 
-type ModalType = 'employee' | 'store' | 'preferences' | 'api-settings' | 'employee-sync' | null;
+type ModalType = 'employee' | 'store' | 'preferences' | 'api-settings' | 'employee-sync' | 'debug' | null;
 
 // Main App Component with Authentication
 function App() {
@@ -315,6 +316,7 @@ function AppContent() {
         onSignOut={signOut}
         onOpenPreferences={() => setModalType('preferences')}
         onOpenApiSettings={() => setModalType('api-settings')}
+        onOpenDebug={() => setModalType('debug')}
         onRefreshData={handleManualDataRefresh}
         dataStats={{
           employees: employees.length,
@@ -576,6 +578,12 @@ function AppContent() {
         onEmployeesImport={handleIntelligentEmployeeSync}
         stores={stores}
         existingEmployees={employees}
+      />
+
+      {/* Modal Debug Dipendenti */}
+      <EmployeeDebugModal
+        isOpen={modalType === 'debug'}
+        onClose={() => setModalType(null)}
       />
     </div>
   );
