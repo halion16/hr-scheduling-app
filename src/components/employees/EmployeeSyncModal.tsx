@@ -47,7 +47,12 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
   const [importing, setImporting] = useState(false);
   const [step, setStep] = useState<'fetch' | 'preview' | 'import'>('fetch');
   const [filterDepartment, setFilterDepartment] = useState('');
-  const [defaultStoreId, setDefaultStoreId] = useState(stores[0]?.id || '');
+  const [filterName, setFilterName] = useState('');
+  const [defaultStoreId, setDefaultStoreId] = useState(() => {
+    // Carica il defaultStoreId salvato, altrimenti usa il primo store
+    const syncConfig = CompanyApiService.getSyncConfig();
+    return syncConfig.defaultStoreId || stores[0]?.id || '';
+  });
   
   // Stati per statistiche
   const [stats, setStats] = useState({
@@ -110,11 +115,22 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
     };
   };
 
-  // Fetch dipendenti da API
-  const fetchApiEmployees = async () => {
+  // Fetch dipendenti da API (con cache)
+  const fetchApiEmployees = async (forceRefresh = false) => {
     setLoading(true);
     try {
-      const employees = await CompanyApiService.fetchActiveEmployees();
+      // Salva la configurazione del negozio di default
+      CompanyApiService.saveSyncConfig({ defaultStoreId });
+      
+      let employees;
+      if (forceRefresh) {
+        // Forza il refresh bypassando la cache
+        console.log('🔄 Forzando refresh da API...');
+        employees = await CompanyApiService.fetchActiveEmployees();
+        CompanyApiService.saveApiEmployeesCache(employees);
+      } else {
+        employees = await CompanyApiService.fetchActiveEmployeesWithCache();
+      }
       
       const mappedEmployees: EmployeeWithMapping[] = employees.map(emp => {
         const mapping = smartMapping(emp);
@@ -146,9 +162,13 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
 
   // Calcola statistiche
   const calculateStats = (employees: EmployeeWithMapping[]) => {
-    const filtered = filterDepartment 
-      ? employees.filter(emp => emp.department.toLowerCase().includes(filterDepartment.toLowerCase()))
-      : employees;
+    const filtered = employees.filter(emp => {
+      const matchesDepartment = !filterDepartment || 
+        emp.department.toLowerCase().includes(filterDepartment.toLowerCase());
+      const matchesName = !filterName || 
+        `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(filterName.toLowerCase());
+      return matchesDepartment && matchesName;
+    });
 
     setStats({
       total: employees.length,
@@ -161,7 +181,7 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
   // Aggiorna stats quando cambiano le selezioni
   useEffect(() => {
     calculateStats(apiEmployees);
-  }, [apiEmployees, filterDepartment]);
+  }, [apiEmployees, filterDepartment, filterName]);
 
   // Toggle selezione dipendente
   const toggleEmployeeSelection = (employeeId: string) => {
@@ -196,6 +216,14 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
     setImporting(true);
     try {
       const toImport = apiEmployees.filter(emp => emp.shouldImport);
+      
+      // Salva gli ID dei dipendenti importati e timestamp
+      const importedIds = toImport.map(emp => emp.employeeId);
+      CompanyApiService.saveSyncConfig({ 
+        defaultStoreId,
+        lastSyncTimestamp: Date.now(),
+        syncedEmployeeIds: importedIds
+      });
       
       const hrEmployees: Employee[] = toImport.map(emp => ({
         id: emp.employeeId,
@@ -237,10 +265,14 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
   // Filtro dipartimenti disponibili
   const availableDepartments = [...new Set(apiEmployees.map(emp => emp.department))];
 
-  // Filtra dipendenti per dipartimento
-  const filteredEmployees = filterDepartment
-    ? apiEmployees.filter(emp => emp.department.toLowerCase().includes(filterDepartment.toLowerCase()))
-    : apiEmployees;
+  // Filtra dipendenti per dipartimento e nome
+  const filteredEmployees = apiEmployees.filter(emp => {
+    const matchesDepartment = !filterDepartment || 
+      emp.department.toLowerCase().includes(filterDepartment.toLowerCase());
+    const matchesName = !filterName || 
+      `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(filterName.toLowerCase());
+    return matchesDepartment && matchesName;
+  });
 
   return (
     <Modal
@@ -256,9 +288,39 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
           <div className="text-center py-8">
             <Users className="h-16 w-16 text-blue-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-4">Importa Dipendenti dal Sistema Aziendale</h3>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 mb-4">
               Il sistema recupererà i dipendenti attivi e suggerirà automaticamente l'assegnazione ai negozi
             </p>
+            
+            {/* Avviso Cache */}
+            {(() => {
+              const cachedEmployees = CompanyApiService.getApiEmployeesCache();
+              const syncConfig = CompanyApiService.getSyncConfig();
+              if (cachedEmployees || syncConfig.lastSyncTimestamp) {
+                return (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6 text-sm">
+                    <div className="flex items-start space-x-2">
+                      <RefreshCw className="h-4 w-4 text-blue-600 mt-0.5" />
+                      <div className="text-blue-800">
+                        <strong>Dati disponibili in cache locale:</strong>
+                        <ul className="mt-1 space-y-1 text-blue-700">
+                          {cachedEmployees && (
+                            <li>• {cachedEmployees.length} dipendenti in cache</li>
+                          )}
+                          {syncConfig.lastSyncTimestamp && (
+                            <li>• Ultima sincronizzazione: {new Date(syncConfig.lastSyncTimestamp).toLocaleString()}</li>
+                          )}
+                        </ul>
+                        <p className="mt-2 text-xs">
+                          La cache viene usata automaticamente per velocizzare l'operazione.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
             
             <div className="mb-6">
               <label className="block text-sm font-medium mb-2">Negozio di Default</label>
@@ -275,21 +337,36 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
               </p>
             </div>
 
-            <Button
-              onClick={fetchApiEmployees}
-              disabled={loading}
-              icon={loading ? undefined : Download}
-              size="lg"
-            >
-              {loading ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Caricamento...
-                </>
-              ) : (
-                'Recupera Dipendenti'
+            <div className="flex space-x-3 justify-center">
+              <Button
+                onClick={() => fetchApiEmployees(false)}
+                disabled={loading}
+                icon={loading ? undefined : Download}
+                size="lg"
+              >
+                {loading ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Caricamento...
+                  </>
+                ) : (
+                  'Recupera Dipendenti'
+                )}
+              </Button>
+
+              {CompanyApiService.getApiEmployeesCache() && (
+                <Button
+                  onClick={() => fetchApiEmployees(true)}
+                  disabled={loading}
+                  variant="outline"
+                  icon={RefreshCw}
+                  size="lg"
+                  className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                >
+                  Forza Refresh
+                </Button>
               )}
-            </Button>
+            </div>
           </div>
         )}
 
@@ -319,8 +396,16 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
             </div>
 
             {/* Filtri */}
-            <div className="flex items-center gap-4 mb-4">
-              <div className="flex-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <Input
+                  placeholder="Cerca per nome o cognome..."
+                  value={filterName}
+                  onChange={setFilterName}
+                  className="w-full"
+                />
+              </div>
+              <div>
                 <Select
                   value={filterDepartment}
                   onChange={setFilterDepartment}
@@ -329,6 +414,12 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
                     ...availableDepartments.map(dept => ({ value: dept, label: dept }))
                   ]}
                 />
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-sm text-gray-600">
+                Visualizzati: <span className="font-medium">{filteredEmployees.length}</span> di {apiEmployees.length}
               </div>
               <Button
                 variant="outline"

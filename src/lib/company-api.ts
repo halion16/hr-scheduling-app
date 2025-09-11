@@ -364,4 +364,86 @@ export class CompanyApiService {
   static toggleMockMode(useMock: boolean): void {
     this.saveCredentials({ useMock });
   }
+
+  // ========== PERSISTENZA LOCALE DATI API ==========
+  
+  // Salva dipendenti da API in cache locale
+  static saveApiEmployeesCache(employees: CompanyApiEmployee[]): void {
+    const cacheData = {
+      employees,
+      timestamp: Date.now(),
+      expiresIn: 1000 * 60 * 30 // Cache valida per 30 minuti
+    };
+    localStorage.setItem('hr-api-employees-cache', JSON.stringify(cacheData));
+  }
+
+  // Carica dipendenti da cache locale
+  static getApiEmployeesCache(): CompanyApiEmployee[] | null {
+    try {
+      const cached = localStorage.getItem('hr-api-employees-cache');
+      if (!cached) return null;
+
+      const cacheData = JSON.parse(cached);
+      const now = Date.now();
+      
+      // Verifica se la cache è ancora valida
+      if (now - cacheData.timestamp > cacheData.expiresIn) {
+        localStorage.removeItem('hr-api-employees-cache');
+        return null;
+      }
+
+      return cacheData.employees;
+    } catch (error) {
+      console.error('Errore caricamento cache dipendenti:', error);
+      return null;
+    }
+  }
+
+  // Salva configurazioni di sincronizzazione
+  static saveSyncConfig(config: { 
+    defaultStoreId?: string;
+    lastSyncTimestamp?: number;
+    syncedEmployeeIds?: string[];
+  }): void {
+    const current = this.getSyncConfig();
+    const updated = { ...current, ...config };
+    localStorage.setItem('hr-sync-config', JSON.stringify(updated));
+  }
+
+  // Carica configurazioni di sincronizzazione
+  static getSyncConfig(): {
+    defaultStoreId?: string;
+    lastSyncTimestamp?: number;
+    syncedEmployeeIds?: string[];
+  } {
+    try {
+      const saved = localStorage.getItem('hr-sync-config');
+      return saved ? JSON.parse(saved) : {};
+    } catch (error) {
+      console.error('Errore caricamento config sync:', error);
+      return {};
+    }
+  }
+
+  // Pulisci cache (per debug o reset)
+  static clearCache(): void {
+    localStorage.removeItem('hr-api-employees-cache');
+    localStorage.removeItem('hr-sync-config');
+  }
+
+  // Fetch con cache intelligente
+  static async fetchActiveEmployeesWithCache(): Promise<CompanyApiEmployee[]> {
+    // Prima prova a usare la cache
+    const cachedEmployees = this.getApiEmployeesCache();
+    if (cachedEmployees) {
+      console.log(`✅ Usando ${cachedEmployees.length} dipendenti dalla cache locale`);
+      return cachedEmployees;
+    }
+
+    // Se cache non disponibile, fetch da API e salva in cache
+    console.log('🔄 Cache non disponibile, fetch da API...');
+    const freshEmployees = await this.fetchActiveEmployees();
+    this.saveApiEmployeesCache(freshEmployees);
+    return freshEmployees;
+  }
 }
