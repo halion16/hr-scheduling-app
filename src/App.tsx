@@ -229,8 +229,7 @@ function AppContent() {
   };
 
   // Handler per sincronizzazione intelligente con preview
-  const handleIntelligentEmployeeSync = (employeesFromModal: Employee[]) => {
-    console.log(`🔄 Importando ${employeesFromModal.length} dipendenti:`, employeesFromModal.map(e => `${e.firstName} ${e.lastName}`));
+  const handleIntelligentEmployeeSync = (employeesFromModal: Employee[], keepModalOpen = false) => {
     
     let addedCount = 0;
     let updatedCount = 0;
@@ -276,9 +275,16 @@ function AppContent() {
     });
 
     console.log(`✅ Importazione completata - Aggiunti: ${addedCount}, Aggiornati: ${updatedCount}`);
-    setModalType(null);
+    
+    // Solo chiudi la modale se non è un'importazione singola
+    if (!keepModalOpen) {
+      setModalType(null);
+    }
+    
     showSuccessNotification(
-      `✅ Importazione completata: ${addedCount} nuovi, ${updatedCount} aggiornati (${addedCount + updatedCount} totali)`
+      keepModalOpen 
+        ? `✅ Dipendente importato: ${employeesFromModal[0]?.firstName} ${employeesFromModal[0]?.lastName}`
+        : `✅ Importazione completata: ${addedCount} nuovi, ${updatedCount} aggiornati (${addedCount + updatedCount} totali)`
     );
   };
 

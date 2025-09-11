@@ -14,6 +14,7 @@ import {
   Eye,
   MapPin,
   UserCheck,
+  UserPlus,
   Filter,
   Building
 } from 'lucide-react';
@@ -21,7 +22,7 @@ import {
 interface EmployeeSyncModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onEmployeesImport: (employees: Employee[]) => void;
+  onEmployeesImport: (employees: Employee[], keepModalOpen?: boolean) => void;
   stores: Store[];
   existingEmployees: Employee[];
 }
@@ -45,6 +46,8 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
   const [apiEmployees, setApiEmployees] = useState<EmployeeWithMapping[]>([]);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [importingSingle, setImportingSingle] = useState<string | null>(null); // ID del dipendente in importazione singola
+  const [importedEmployees, setImportedEmployees] = useState<Set<string>>(new Set()); // Dipendenti già importati in questa sessione
   const [step, setStep] = useState<'fetch' | 'preview' | 'import'>('fetch');
   const [filterDepartment, setFilterDepartment] = useState('');
   const [filterName, setFilterName] = useState('');
@@ -263,18 +266,61 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
     }
   };
 
+  // Importa un singolo dipendente mantenendo la modale aperta
+  const importSingleEmployee = async (employeeId: string) => {
+    setImportingSingle(employeeId);
+    try {
+      const employee = apiEmployees.find(emp => emp.employeeId === employeeId);
+      if (!employee) {
+        alert('Dipendente non trovato!');
+        return;
+      }
+
+      // Importing single employee
+
+      // Converti in formato HR
+      const hrEmployee: Employee = {
+        id: employee.employeeId,
+        firstName: employee.firstName,
+        lastName: employee.lastName,
+        email: employee.email,
+        phone: employee.phone || '',
+        position: employee.position,
+        department: employee.department,
+        hireDate: new Date(employee.hireDate),
+        isActive: employee.status === 'active',
+        storeId: employee.suggestedStoreId,
+        skills: [],
+        maxWeeklyHours: 40,
+        minRestHours: 12,
+        preferredShifts: [],
+        contractType: 'full-time',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      // Importa il singolo dipendente con flag per mantenere modale aperta
+      onEmployeesImport([hrEmployee], true);
+      
+      // Aggiorna lo stato: rimuovi dalle lista e aggiungi agli importati
+      setImportedEmployees(prev => new Set([...prev, employeeId]));
+      setApiEmployees(prev => prev.filter(emp => emp.employeeId !== employeeId));
+      
+      // Single employee import completed
+      
+    } catch (error: any) {
+      alert(`Errore durante l'importazione di ${employeeId}: ${error.message}`);
+    } finally {
+      setImportingSingle(null);
+    }
+  };
+
   // Filtro dipartimenti disponibili
   const availableDepartments = [...new Set(apiEmployees.map(emp => emp.department))];
 
   // FILTRO SEMPLICE: Solo per negozio se selezionato
   const filteredEmployees = selectedStoreFilter 
-    ? apiEmployees.filter(emp => {
-        const matches = emp.suggestedStoreId === selectedStoreFilter;
-        if (selectedStoreFilter) {
-          console.log(`🔍 FILTRO: ${emp.firstName} ${emp.lastName} - storeId: ${emp.suggestedStoreId} vs filter: ${selectedStoreFilter} = ${matches}`);
-        }
-        return matches;
-      })
+    ? apiEmployees.filter(emp => emp.suggestedStoreId === selectedStoreFilter)
     : apiEmployees;
 
   // DEBUG: Log dei risultati del filtro
@@ -283,10 +329,17 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
     console.log(`🏪 STORE SELEZIONATO:`, stores.find(s => s.id === selectedStoreFilter)?.name);
   }
 
+  // Reset degli stati quando si chiude la modale
+  const handleClose = () => {
+    setImportedEmployees(new Set());
+    setImportingSingle(null);
+    onClose();
+  };
+
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       title="Sincronizzazione Dipendenti da API"
       size="xl"
     >
@@ -398,7 +451,7 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
           <div>
             {/* Statistiche */}
             <div className="bg-gray-50 rounded-lg p-4 mb-6">
-              <div className="grid grid-cols-4 gap-4 text-center">
+              <div className="grid grid-cols-5 gap-4 text-center">
                 <div>
                   <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
                   <div className="text-sm text-gray-600">Dipendenti Trovati</div>
@@ -415,7 +468,26 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
                   <div className="text-2xl font-bold text-purple-600">{stats.new}</div>
                   <div className="text-sm text-gray-600">Nuovi</div>
                 </div>
+                <div>
+                  <div className="text-2xl font-bold text-emerald-600">{importedEmployees.size}</div>
+                  <div className="text-sm text-gray-600">Già Importati</div>
+                </div>
               </div>
+              
+              {/* Messaggio di feedback per importazioni singole */}
+              {importedEmployees.size > 0 && (
+                <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-emerald-600" />
+                    <span className="text-sm text-emerald-800 font-medium">
+                      ✅ {importedEmployees.size} dipendente{importedEmployees.size > 1 ? 'i' : ''} importato{importedEmployees.size > 1 ? 'i' : ''} con successo in questa sessione!
+                    </span>
+                  </div>
+                  <p className="text-xs text-emerald-700 mt-1">
+                    La modale rimane aperta per continuare con altri dipendenti.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Filtri */}
@@ -574,6 +646,24 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
                         size="sm"
                         className="min-w-[150px]"
                       />
+                      
+                      {/* Pulsante Importa Singolo */}
+                      <Button
+                        size="sm"
+                        onClick={() => importSingleEmployee(employee.employeeId)}
+                        disabled={importingSingle === employee.employeeId}
+                        icon={importingSingle === employee.employeeId ? undefined : UserPlus}
+                        className="bg-green-600 hover:bg-green-700 text-white border-green-600"
+                      >
+                        {importingSingle === employee.employeeId ? (
+                          <>
+                            <RefreshCw className="mr-1 h-3 w-3 animate-spin" />
+                            Importando...
+                          </>
+                        ) : (
+                          'Importa'
+                        )}
+                      </Button>
                     </div>
                   </div>
 

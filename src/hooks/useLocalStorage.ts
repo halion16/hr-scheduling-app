@@ -273,8 +273,8 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     }
   };
 
-  // Enable cross-tab synchronization
-  useCrossTabSync(key, setStoredValue);
+  // Enable cross-tab synchronization - DISABILITATO TEMPORANEAMENTE per fix importazione
+  // useCrossTabSync(key, setStoredValue);
 
   return [storedValue, setValue, refreshFromStorage] as const;
 }

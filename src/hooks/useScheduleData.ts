@@ -38,6 +38,8 @@ export const useScheduleData = () => {
 
   // Function to refresh all data from localStorage
   const refreshAllData = () => {
+    console.log(`🔄 REFRESH ALL DATA - Reloading from localStorage`);
+    console.log(`📊 Current employees in memory before refresh:`, employees.length);
     refreshEmployees();
     refreshStores();
     refreshShifts();
@@ -97,7 +99,9 @@ export const useScheduleData = () => {
   const [hasInitialized, setHasInitialized] = useState(false);
   useEffect(() => {
     if (isVisible && hasInitialized) {
-      refreshAllData();
+      // DISABILITATO TEMPORANEAMENTE per fix importazione singola
+      // refreshAllData();
+      console.log(`⏸️ Auto-refresh disabled - would refresh ${employees.length} employees`);
     } else if (!hasInitialized) {
       setHasInitialized(true);
     }
@@ -143,7 +147,7 @@ export const useScheduleData = () => {
       createdAt: new Date(),
       updatedAt: new Date()
     };
-    console.log('➕ Adding employee:', newEmployee.firstName, newEmployee.lastName);
+    // Employee added successfully
     setEmployees(prev => [...prev, newEmployee]);
     return newEmployee;
   };

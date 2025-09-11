@@ -28,6 +28,8 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
 
   const storeMap = new Map(stores.map(store => [store.id, store]));
 
+  // Debug logging removed for cleaner console
+
   const filteredEmployees = employees.filter(employee => {
     const matchesSearch = 
       employee.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -43,18 +45,12 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
       employee.storeId === storeFilter ||
       (storeFilter === 'unassigned' && !employee.storeId);
 
-    // DEBUG: Log del filtro negozio
-    if (storeFilter !== 'all') {
-      console.log(`🔍 FILTER DEBUG - Employee: ${employee.firstName} ${employee.lastName}, storeId: ${employee.storeId}, storeFilter: ${storeFilter}, matches: ${matchesStore}`);
-    }
+    // Filter debug removed
 
     return matchesSearch && matchesStatus && matchesStore;
   });
 
-  // DEBUG: Log del risultato finale
-  if (storeFilter !== 'all') {
-    console.log(`📊 FILTER RESULT - Total employees: ${employees.length}, Filtered: ${filteredEmployees.length}, Store filter: ${storeFilter}`);
-  }
+  // Filter result debug removed
 
   const storeOptions = [
     { value: 'all', label: 'Tutti i Negozi' },
