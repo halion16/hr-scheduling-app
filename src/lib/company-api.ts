@@ -11,6 +11,12 @@ export interface CompanyApiEmployee {
   hireDate: string;
   phone?: string;
   status: 'active' | 'inactive';
+  // Informazioni negozio/unità organizzativa dal gestionale
+  organizationalUnit?: string;  // Unità organizzativa da EcosAgile
+  storeCode?: string;          // Codice negozio dal gestionale
+  storeName?: string;          // Nome negozio dal gestionale
+  storeId?: string;            // ID mappato al sistema HR (se già presente)
+  workLocation?: string;       // Sede di lavoro generica
 }
 
 // Backup dei dati mock per fallback
@@ -24,7 +30,11 @@ const MOCK_COMPANY_EMPLOYEES: CompanyApiEmployee[] = [
     department: 'IT',
     hireDate: '2022-03-15',
     phone: '+39 340 1234567',
-    status: 'active'
+    status: 'active',
+    organizationalUnit: 'Negozio Milano Centro',
+    storeCode: 'MIL001',
+    storeName: 'Milano Centro',
+    workLocation: 'Milano'
   },
   {
     employeeId: 'EMP002',
@@ -35,7 +45,11 @@ const MOCK_COMPANY_EMPLOYEES: CompanyApiEmployee[] = [
     department: 'Marketing',
     hireDate: '2021-09-01',
     phone: '+39 340 2345678',
-    status: 'active'
+    status: 'active',
+    organizationalUnit: 'Negozio Roma Termini',
+    storeCode: 'ROM001',
+    storeName: 'Roma Termini',
+    workLocation: 'Roma'
   },
   {
     employeeId: 'EMP003',
@@ -46,7 +60,11 @@ const MOCK_COMPANY_EMPLOYEES: CompanyApiEmployee[] = [
     department: 'Sales',
     hireDate: '2023-01-10',
     phone: '+39 340 3456789',
-    status: 'active'
+    status: 'active',
+    organizationalUnit: 'Negozio Milano Porta Nuova',
+    storeCode: 'MIL002',
+    storeName: 'Milano Porta Nuova',
+    workLocation: 'Milano'
   },
   {
     employeeId: 'EMP004',
@@ -57,7 +75,11 @@ const MOCK_COMPANY_EMPLOYEES: CompanyApiEmployee[] = [
     department: 'HR',
     hireDate: '2020-05-20',
     phone: '+39 340 4567890',
-    status: 'active'
+    status: 'active',
+    organizationalUnit: 'Sede Amministrativa Napoli',
+    storeCode: 'NAP001',
+    storeName: 'Napoli Centro',
+    workLocation: 'Napoli'
   },
   {
     employeeId: 'EMP005',
@@ -68,7 +90,11 @@ const MOCK_COMPANY_EMPLOYEES: CompanyApiEmployee[] = [
     department: 'Retail',
     hireDate: '2021-11-12',
     phone: '+39 340 5678901',
-    status: 'active'
+    status: 'active',
+    organizationalUnit: 'Punto Vendita Torino Lingotto',
+    storeCode: 'TOR001',
+    storeName: 'Torino Lingotto',
+    workLocation: 'Torino'
   },
   {
     employeeId: 'EMP006',
@@ -79,7 +105,11 @@ const MOCK_COMPANY_EMPLOYEES: CompanyApiEmployee[] = [
     department: 'Retail',
     hireDate: '2022-08-03',
     phone: '+39 340 6789012',
-    status: 'active'
+    status: 'active',
+    organizationalUnit: 'Negozio Roma Termini',
+    storeCode: 'ROM001',
+    storeName: 'Roma Termini',
+    workLocation: 'Roma'
   }
 ];
 
@@ -302,7 +332,20 @@ export class CompanyApiService {
       department: ecosEmployee.Department || ecosEmployee.Dipartimento || 'Non specificato',
       hireDate: ecosEmployee.HireDate || ecosEmployee.DataAssunzione || new Date().toISOString().split('T')[0],
       phone: ecosEmployee.Phone || ecosEmployee.Telefono || ecosEmployee.PhoneNumber || '',
-      status: (!ecosEmployee.Delete || ecosEmployee.Delete === '0') ? 'active' : 'inactive'
+      status: (!ecosEmployee.Delete || ecosEmployee.Delete === '0') ? 'active' : 'inactive',
+      // Recupera unità organizzativa da vari possibili campi EcosAgile
+      organizationalUnit: ecosEmployee.OrganizationalUnit || 
+                         ecosEmployee.UnitaOrganizzativa || 
+                         ecosEmployee.BusinessUnit || 
+                         ecosEmployee.WorkLocation || 
+                         ecosEmployee.Office || 
+                         ecosEmployee.Branch || 
+                         ecosEmployee.Store ||
+                         ecosEmployee.Location ||
+                         '',
+      storeCode: ecosEmployee.StoreCode || ecosEmployee.BranchCode || '',
+      storeName: ecosEmployee.StoreName || ecosEmployee.BranchName || '',
+      workLocation: ecosEmployee.WorkLocation || ecosEmployee.City || ecosEmployee.Location || ''
     };
   }
 

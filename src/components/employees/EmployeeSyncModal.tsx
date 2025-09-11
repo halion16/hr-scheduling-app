@@ -62,51 +62,68 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
     new: 0
   });
 
-  // Regole di mapping intelligente
+  // Regole di mapping intelligente con priorità per unità organizzativa
   const smartMapping = (employee: CompanyApiEmployee): { storeId: string; storeName: string; confidence: 'high' | 'medium' | 'low' } => {
-    // Mapping basato su dipartimento
-    const departmentMappings: Record<string, string[]> = {
-      'retail': ['negozio', 'store', 'vendite', 'sales'],
-      'it': ['informatica', 'tech', 'sviluppo'],
-      'hr': ['risorse umane', 'personale'],
-      'marketing': ['marketing', 'comunicazione'],
-      'amministrazione': ['admin', 'contabilità', 'accounting']
-    };
-
     const dept = employee.department.toLowerCase();
     const position = employee.position.toLowerCase();
+    const orgUnit = (employee.organizationalUnit || '').toLowerCase();
+    
+    console.log(`🔍 Mapping per ${employee.firstName} ${employee.lastName}:`, {
+      orgUnit: employee.organizationalUnit,
+      storeCode: employee.storeCode,
+      storeName: employee.storeName,
+      department: employee.department
+    });
 
-    // 1. Cerca corrispondenza diretta nel nome del negozio
-    for (const store of stores) {
-      const storeName = store.name.toLowerCase();
-      if (storeName.includes(dept) || dept.includes(storeName.split(' ')[0])) {
-        return { storeId: store.id, storeName: store.name, confidence: 'high' };
-      }
-    }
-
-    // 2. Mapping basato su keywords nel dipartimento/posizione
-    for (const [storeType, keywords] of Object.entries(departmentMappings)) {
-      if (keywords.some(keyword => dept.includes(keyword) || position.includes(keyword))) {
-        const matchingStore = stores.find(s => 
-          s.name.toLowerCase().includes(storeType) || 
-          s.name.toLowerCase().includes('retail') ||
-          s.name.toLowerCase().includes('negozio')
+    // 1. PRIORITÀ MASSIMA: Unità Organizzativa dal gestionale
+    if (employee.organizationalUnit) {
+      for (const store of stores) {
+        const storeName = store.name.toLowerCase();
+        
+        // Match diretto con unità organizzativa
+        if (orgUnit.includes(storeName) || storeName.includes(orgUnit)) {
+          console.log(`✅ Match diretto unità organizzativa: ${employee.organizationalUnit} → ${store.name}`);
+          return { storeId: store.id, storeName: store.name, confidence: 'high' };
+        }
+        
+        // Match parziale con parole chiave dell'unità organizzativa
+        const orgWords = orgUnit.split(' ');
+        const storeWords = storeName.split(' ');
+        const hasCommonWords = orgWords.some(word => 
+          word.length > 3 && storeWords.some(storeWord => storeWord.includes(word) || word.includes(storeWord))
         );
-        if (matchingStore) {
-          return { storeId: matchingStore.id, storeName: matchingStore.name, confidence: 'medium' };
+        
+        if (hasCommonWords) {
+          console.log(`🎯 Match parziale unità organizzativa: ${employee.organizationalUnit} → ${store.name}`);
+          return { storeId: store.id, storeName: store.name, confidence: 'high' };
         }
       }
     }
 
-    // 3. Se contiene "manager" o "responsabile", cerca il primo negozio
-    if (position.includes('manager') || position.includes('responsabile')) {
-      const firstStore = stores[0];
-      if (firstStore) {
-        return { storeId: firstStore.id, storeName: firstStore.name, confidence: 'medium' };
+    // 2. StoreCode/StoreName dal gestionale 
+    if (employee.storeCode || employee.storeName) {
+      for (const store of stores) {
+        const storeName = store.name.toLowerCase();
+        const storeNameFromApi = (employee.storeName || '').toLowerCase();
+        
+        if (storeNameFromApi && (storeName.includes(storeNameFromApi) || storeNameFromApi.includes(storeName))) {
+          console.log(`🏪 Match nome negozio: ${employee.storeName} → ${store.name}`);
+          return { storeId: store.id, storeName: store.name, confidence: 'high' };
+        }
       }
     }
 
-    // 4. Fallback al negozio di default
+    // 3. Fallback: Cerca corrispondenza con il dipartimento (confidence media)
+    for (const store of stores) {
+      const storeName = store.name.toLowerCase();
+      if (storeName.includes(dept) || dept.includes(storeName.split(' ')[0])) {
+        console.log(`📝 Match dipartimento: ${employee.department} → ${store.name}`);
+        return { storeId: store.id, storeName: store.name, confidence: 'medium' };
+      }
+    }
+
+    // 4. Fallback al negozio di default con confidence bassa
+    console.log(`⚠️ Nessun match trovato, usando negozio di default per ${employee.firstName} ${employee.lastName}`);
     const defaultStore = stores.find(s => s.id === defaultStoreId) || stores[0];
     return { 
       storeId: defaultStore?.id || '', 
@@ -544,6 +561,14 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
                         
                         <div className="text-sm text-gray-600">
                           {employee.position} • {employee.department} • {employee.email}
+                          {employee.organizationalUnit && (
+                            <>
+                              <br />
+                              <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded mt-1 inline-block">
+                                📍 {employee.organizationalUnit}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
