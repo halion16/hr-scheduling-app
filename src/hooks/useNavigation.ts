@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { NavigationItem } from '../components/navigation/NavigationBar';
 import { UserProfile } from './useAuth';
 import { 
@@ -8,14 +8,13 @@ import {
   Settings, 
   BarChart3, 
   Grid, 
-  Rotate3D as RotateRight, 
   Coffee, 
   CalendarX, 
   Banknote,
   Shield
 } from 'lucide-react';
 
-export type View = 'schedule' | 'timeline' | 'validation' | 'rotation' | 'employees' | 'stores' | 'weekend-report' | 'unavailability' | 'hour-bank' | 'users';
+export type View = 'schedule' | 'timeline' | 'validation' | 'employees' | 'stores' | 'weekend-report' | 'unavailability' | 'hour-bank' | 'users';
 
 interface UseNavigationProps {
   profile: UserProfile | null;
@@ -45,13 +44,6 @@ export const useNavigation = ({ profile, hasPermission }: UseNavigationProps) =>
       name: 'Convalida', 
       icon: Shield,
       permission: 'approve_requests',
-      minRole: 'manager'
-    },
-    { 
-      id: 'rotation', 
-      name: 'Rotazione', 
-      icon: RotateRight,
-      permission: 'generate_schedules',
       minRole: 'manager'
     },
     { 
@@ -116,8 +108,8 @@ export const useNavigation = ({ profile, hasPermission }: UseNavigationProps) =>
     });
   }, [navigationItems, profile, hasPermission]);
 
-  // Check if current view is still accessible after filtering
-  const handleViewChange = (view: string) => {
+  // Check if current view is still accessible after filtering (memoized)
+  const handleViewChange = useCallback((view: string) => {
     const availableViews = filteredNavigation.map(item => item.id);
     if (availableViews.includes(view) || view === 'schedule') {
       setCurrentView(view as View);
@@ -125,7 +117,7 @@ export const useNavigation = ({ profile, hasPermission }: UseNavigationProps) =>
       // Redirect to first available view
       setCurrentView((availableViews[0] || 'schedule') as View);
     }
-  };
+  }, [filteredNavigation]);
 
   return {
     currentView,

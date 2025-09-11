@@ -343,11 +343,23 @@ function AppContent() {
                 <CalendarX className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Vista Limitata</h3>
                 <p className="text-gray-500 mb-4">Puoi solo visualizzare le indisponibilità ma non approvarle o gestirle.</p>
-                <UnavailabilityManager employees={employees} />
+                <UnavailabilityManager 
+                  employees={employees}
+                  unavailabilities={unavailabilities}
+                  onAddUnavailability={addUnavailability}
+                  onUpdateUnavailability={updateUnavailability}
+                  onDeleteUnavailability={deleteUnavailability}
+                />
               </div>
             </div>
           }>
-            <UnavailabilityManager employees={employees} />
+            <UnavailabilityManager 
+              employees={employees}
+              unavailabilities={unavailabilities}
+              onAddUnavailability={addUnavailability}
+              onUpdateUnavailability={updateUnavailability}
+              onDeleteUnavailability={deleteUnavailability}
+            />
           </ProtectedRoute>
         )}
 

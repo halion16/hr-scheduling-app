@@ -27,15 +27,26 @@ import {
 
 interface UnavailabilityManagerProps {
   employees: Employee[];
+  unavailabilities?: EmployeeUnavailability[];
+  onAddUnavailability?: (unavailability: Omit<EmployeeUnavailability, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  onUpdateUnavailability?: (id: string, updates: Partial<EmployeeUnavailability>) => void;
+  onDeleteUnavailability?: (id: string) => void;
 }
 
-export const UnavailabilityManager: React.FC<UnavailabilityManagerProps> = ({ employees }) => {
-  const {
-    unavailabilities,
-    addUnavailability,
-    updateUnavailability,
-    deleteUnavailability
-  } = useScheduleData();
+export const UnavailabilityManager: React.FC<UnavailabilityManagerProps> = ({ 
+  employees, 
+  unavailabilities: propUnavailabilities,
+  onAddUnavailability,
+  onUpdateUnavailability,
+  onDeleteUnavailability
+}) => {
+  // Only call useScheduleData if props are not provided (for backwards compatibility)
+  const scheduleData = !propUnavailabilities ? useScheduleData() : null;
+  
+  const unavailabilities = propUnavailabilities ?? scheduleData?.unavailabilities ?? [];
+  const addUnavailability = onAddUnavailability ?? scheduleData?.addUnavailability ?? (() => {});
+  const updateUnavailability = onUpdateUnavailability ?? scheduleData?.updateUnavailability ?? (() => {});
+  const deleteUnavailability = onDeleteUnavailability ?? scheduleData?.deleteUnavailability ?? (() => {});
 
   const [showModal, setShowModal] = useState(false);
   const [editingUnavailability, setEditingUnavailability] = useState<EmployeeUnavailability | null>(null);

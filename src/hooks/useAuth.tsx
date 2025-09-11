@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 
 export interface UserProfile {
@@ -178,8 +178,8 @@ export const useAuth = (): AuthContextType => {
     }
   }, [currentSession]);
 
-  // Check permissions based on user role
-  const hasPermission = (permission: Permission): boolean => {
+  // Check permissions based on user role (memoized to prevent re-renders)
+  const hasPermission = useCallback((permission: Permission): boolean => {
     if (!state.profile) return false;
     
     // Check custom permissions first, fallback to role-based permissions
@@ -189,10 +189,10 @@ export const useAuth = (): AuthContextType => {
     
     // Fallback to role-based permissions for backward compatibility
     return ROLE_PERMISSIONS[state.profile.role].includes(permission);
-  };
+  }, [state.profile]);
 
-  // Check if user can access specific store
-  const canAccessStore = (storeId: string): boolean => {
+  // Check if user can access specific store (memoized to prevent re-renders)
+  const canAccessStore = useCallback((storeId: string): boolean => {
     if (!state.profile) return false;
     
     // Admins can access all stores
@@ -205,7 +205,7 @@ export const useAuth = (): AuthContextType => {
     
     // Users have limited access
     return false;
-  };
+  }, [state.profile]);
 
   // Sign in with email and password
   const signIn = async (email: string, password: string) => {
