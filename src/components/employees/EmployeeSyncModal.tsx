@@ -420,17 +420,76 @@ export const EmployeeSyncModal: React.FC<EmployeeSyncModalProps> = ({
             <div className="flex items-center justify-between mb-4">
               <div className="text-sm text-gray-600">
                 Visualizzati: <span className="font-medium">{filteredEmployees.length}</span> di {apiEmployees.length}
+                {stats.selected > 0 && (
+                  <span className="ml-2 text-green-600 font-medium">
+                    • {stats.selected} selezionati per l'import
+                  </span>
+                )}
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const newState = stats.selected < stats.total;
-                  setApiEmployees(prev => prev.map(emp => ({ ...emp, shouldImport: newState })));
-                }}
-              >
-                {stats.selected < stats.total ? 'Seleziona Tutti' : 'Deseleziona Tutti'}
-              </Button>
+              
+              <div className="flex space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    // Calcola quanti dipendenti VISIBILI sono selezionati
+                    const visibleSelectedCount = filteredEmployees.filter(emp => emp.shouldImport).length;
+                    const shouldSelectAll = visibleSelectedCount < filteredEmployees.length;
+                    
+                    // Aggiorna solo i dipendenti visibili nel filtro
+                    setApiEmployees(prev => prev.map(emp => {
+                      const isVisible = filteredEmployees.find(filtered => filtered.employeeId === emp.employeeId);
+                      return isVisible ? { ...emp, shouldImport: shouldSelectAll } : emp;
+                    }));
+                  }}
+                >
+                  {(() => {
+                    const visibleSelectedCount = filteredEmployees.filter(emp => emp.shouldImport).length;
+                    return visibleSelectedCount < filteredEmployees.length ? 
+                      `Seleziona Visibili (${filteredEmployees.length})` : 
+                      'Deseleziona Visibili';
+                  })()}
+                </Button>
+
+                {/* Selezione rapida per negozio */}
+                {filteredEmployees.length > 0 && (
+                  <Select
+                    value=""
+                    onChange={(storeId) => {
+                      if (!storeId) return;
+                      
+                      // Trova i dipendenti visibili assegnati a questo negozio
+                      const employeesForStore = filteredEmployees.filter(emp => 
+                        emp.suggestedStoreId === storeId
+                      );
+                      
+                      if (employeesForStore.length > 0) {
+                        const allSelected = employeesForStore.every(emp => emp.shouldImport);
+                        const shouldSelect = !allSelected;
+                        
+                        // Aggiorna la selezione per i dipendenti di questo negozio
+                        setApiEmployees(prev => prev.map(emp => {
+                          const isForThisStore = employeesForStore.find(filtered => 
+                            filtered.employeeId === emp.employeeId
+                          );
+                          return isForThisStore ? { ...emp, shouldImport: shouldSelect } : emp;
+                        }));
+                      }
+                    }}
+                    options={[
+                      { value: '', label: 'Seleziona per Negozio...' },
+                      ...stores.map(store => {
+                        const count = filteredEmployees.filter(emp => emp.suggestedStoreId === store.id).length;
+                        return {
+                          value: store.id,
+                          label: `${store.name} (${count})`
+                        };
+                      }).filter(option => option.label.includes('(') && !option.label.includes('(0)'))
+                    ]}
+                    size="sm"
+                  />
+                )}
+              </div>
             </div>
 
             {/* Lista dipendenti */}
