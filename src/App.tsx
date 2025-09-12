@@ -30,6 +30,7 @@ import { ApiSettings } from './components/settings/ApiSettings';
 import { EmployeeSyncModal } from './components/employees/EmployeeSyncModal';
 import { EmployeeDebugModal } from './components/debug/EmployeeDebugModal';
 import { ValidationConfigPanel } from './components/admin/ValidationConfigPanel';
+import { WorkloadDashboard } from './components/workload/WorkloadDashboard';
 import { Users, Calendar, CalendarX } from 'lucide-react';
 import { exportScheduleToExcel, exportEmployeesToExcel } from './utils/exportUtils';
 import { getStartOfWeek, getEndOfWeek } from './utils/timeUtils';
@@ -407,7 +408,7 @@ function AppContent() {
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {(currentView === 'schedule' || currentView === 'timeline' || currentView === 'validation') && (
+        {(currentView === 'schedule' || currentView === 'timeline' || currentView === 'validation' || currentView === 'workload-dashboard') && (
           <ProtectedRoute requiredPermission="manage_shifts">
           <div className="space-y-6">
             <ScheduleHeader
@@ -459,6 +460,18 @@ function AppContent() {
                       userRole={profile.role}
                       onToggleLock={handleShiftToggleLock}
                       onBulkLock={handleBulkShiftLock}
+                    />
+                  </ProtectedRoute>
+                )}
+
+                {currentView === 'workload-dashboard' && (
+                  <ProtectedRoute requiredPermission="view_analytics">
+                    <WorkloadDashboard
+                      employees={employees}
+                      shifts={shifts}
+                      stores={stores}
+                      weekStart={currentWeek}
+                      adminSettings={validationSettings}
                     />
                   </ProtectedRoute>
                 )}

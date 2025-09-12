@@ -11,10 +11,11 @@ import {
   Coffee, 
   CalendarX, 
   Banknote,
-  Shield
+  Shield,
+  PieChart
 } from 'lucide-react';
 
-export type View = 'schedule' | 'timeline' | 'validation' | 'employees' | 'stores' | 'weekend-report' | 'unavailability' | 'hour-bank' | 'users';
+export type View = 'schedule' | 'timeline' | 'validation' | 'employees' | 'stores' | 'weekend-report' | 'unavailability' | 'hour-bank' | 'users' | 'workload-dashboard';
 
 interface UseNavigationProps {
   profile: UserProfile | null;
@@ -38,6 +39,13 @@ export const useNavigation = ({ profile, hasPermission }: UseNavigationProps) =>
       icon: BarChart3,
       permission: 'view_analytics',
       minRole: 'user'
+    },
+    { 
+      id: 'workload-dashboard', 
+      name: 'Workload', 
+      icon: PieChart,
+      permission: 'view_analytics',
+      minRole: 'manager'
     },
     { 
       id: 'validation', 
