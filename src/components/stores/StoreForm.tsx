@@ -94,7 +94,7 @@ export const StoreForm: React.FC<StoreFormProps> = ({
 
     // Valida gli orari di apertura
     DAYS_OF_WEEK.forEach(day => {
-      const hours = openingHours[day];
+      const hours = openingHours?.[day];
       if (hours && hours.open >= hours.close) {
         newErrors[`${day}_hours`] = `L'orario di chiusura di ${DAY_LABELS[day as keyof typeof DAY_LABELS]} deve essere successivo all'apertura`;
       }
@@ -428,7 +428,7 @@ interface WeeklyHoursFormProps {
   store: Store;
   formData: { name: string; isActive: boolean };
   setFormData: React.Dispatch<React.SetStateAction<{ name: string; isActive: boolean }>>;
-  openingHours: Record<string, { open: string; close: string }>;
+  openingHours: Record<string, { open: string; close: string }> | undefined;
   updateDayHours: (day: string, field: 'open' | 'close', value: string) => void;
   errors: Record<string, string>;
   onSubmit: (e: React.FormEvent) => void;
@@ -616,13 +616,13 @@ const WeeklyHoursForm: React.FC<WeeklyHoursFormProps> = ({
               <Input
                 label="Apertura"
                 type="time"
-                value={openingHours[day]?.open || '09:00'}
+                value={openingHours?.[day]?.open || '09:00'}
                 onChange={(value) => updateDayHours(day, 'open', value)}
               />
               <Input
                 label="Chiusura"
                 type="time"
-                value={openingHours[day]?.close || '18:00'}
+                value={openingHours?.[day]?.close || '18:00'}
                 onChange={(value) => updateDayHours(day, 'close', value)}
               />
               {errors[`${day}_hours`] && (
@@ -1038,7 +1038,7 @@ const ClosuresForm: React.FC<ClosuresFormProps> = ({
 interface HoursFormProps {
   formData: { name: string; isActive: boolean };
   setFormData: React.Dispatch<React.SetStateAction<{ name: string; isActive: boolean }>>;
-  openingHours: Record<string, { open: string; close: string }>;
+  openingHours: Record<string, { open: string; close: string }> | undefined;
   updateDayHours: (day: string, field: 'open' | 'close', value: string) => void;
   errors: Record<string, string>;
   onSubmit: (e: React.FormEvent) => void;
@@ -1108,13 +1108,13 @@ const HoursForm: React.FC<HoursFormProps> = ({
               <Input
                 label="Apertura"
                 type="time"
-                value={openingHours[day]?.open || '09:00'}
+                value={openingHours?.[day]?.open || '09:00'}
                 onChange={(value) => updateDayHours(day, 'open', value)}
               />
               <Input
                 label="Chiusura"
                 type="time"
-                value={openingHours[day]?.close || '18:00'}
+                value={openingHours?.[day]?.close || '18:00'}
                 onChange={(value) => updateDayHours(day, 'close', value)}
               />
               {errors[`${day}_hours`] && (

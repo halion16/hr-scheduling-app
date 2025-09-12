@@ -174,7 +174,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                 const dayEvents = timelineEvents.filter(event => 
                   event.date.toDateString() === date.toDateString()
                 );
-                const storeHours = store.openingHours[getDayOfWeek(date)];
+                const storeHours = store.openingHours?.[getDayOfWeek(date)];
 
                 return (
                   <div key={date.toISOString()} className="relative">

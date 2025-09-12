@@ -169,7 +169,7 @@ export const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({
   };
 
   const weeklyRequiredHours = calculateWeeklyRequiredHours(selectedStore);
-  const openDays = selectedStore ? Object.values(selectedStore.openingHours).filter(h => h).length : 0;
+  const openDays = selectedStore?.openingHours ? Object.values(selectedStore.openingHours).filter(h => h).length : 0;
   const avgDailyHours = openDays > 0 ? weeklyRequiredHours / openDays : 0;
 
   // Function to get store hours for a specific day considering closures and weekly schedules
@@ -202,7 +202,7 @@ export const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({
     }
     
     // Fallback to standard hours
-    return selectedStore.openingHours[dayOfWeek];
+    return selectedStore.openingHours?.[dayOfWeek];
   }, [selectedStore]);
 
   return (

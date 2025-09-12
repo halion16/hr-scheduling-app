@@ -113,12 +113,12 @@ export const StoreList: React.FC<StoreListProps> = ({
           bValue = b.createdAt.getTime();
           break;
         case 'totalHours':
-          aValue = getOperatingStatus(a.openingHours).totalWeeklyHours;
-          bValue = getOperatingStatus(b.openingHours).totalWeeklyHours;
+          aValue = getOperatingStatus(a.openingHours || {}).totalWeeklyHours;
+          bValue = getOperatingStatus(b.openingHours || {}).totalWeeklyHours;
           break;
         case 'openDays':
-          aValue = getOperatingStatus(a.openingHours).openDays;
-          bValue = getOperatingStatus(b.openingHours).openDays;
+          aValue = getOperatingStatus(a.openingHours || {}).openDays;
+          bValue = getOperatingStatus(b.openingHours || {}).openDays;
           break;
         default:
           return 0;
@@ -142,7 +142,7 @@ export const StoreList: React.FC<StoreListProps> = ({
     if (storeToDuplicate && onDuplicate && duplicateName.trim()) {
       onDuplicate({
         name: duplicateName.trim(),
-        openingHours: { ...storeToDuplicate.openingHours },
+        openingHours: { ...storeToDuplicate.openingHours || {} },
         isActive: true,
         staffRequirements: storeToDuplicate.staffRequirements 
           ? [...storeToDuplicate.staffRequirements] 
@@ -301,7 +301,7 @@ export const StoreList: React.FC<StoreListProps> = ({
                         {filteredAndSortedStores.filter(s => s.isActive).length}
                       </span> attivi •{' '}
                       <span className="font-medium">
-                        {filteredAndSortedStores.reduce((sum, s) => sum + getOperatingStatus(s.openingHours).totalWeeklyHours, 0).toFixed(0)}h
+                        {filteredAndSortedStores.reduce((sum, s) => sum + getOperatingStatus(s.openingHours || {}).totalWeeklyHours, 0).toFixed(0)}h
                       </span> totali
                     </div>
                   </div>
@@ -436,7 +436,7 @@ export const StoreList: React.FC<StoreListProps> = ({
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
               <h4 className="font-medium text-gray-900 mb-3">Orari che verranno copiati:</h4>
               <div className="grid grid-cols-2 gap-2 text-sm">
-                {Object.entries(storeToDuplicate.openingHours).map(([day, hours]) => (
+                {Object.entries(storeToDuplicate.openingHours || {}).map(([day, hours]) => (
                   <div key={day} className="flex justify-between items-center p-2 bg-white rounded">
                     <span className="font-medium text-gray-700">
                       {dayNames[day as keyof typeof dayNames]}:

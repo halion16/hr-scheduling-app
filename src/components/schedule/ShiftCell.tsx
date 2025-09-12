@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Shift, Employee, ShiftConflict, CopiedShift, EmployeeUnavailability } from '../../types';
+import { Shift, Employee, ShiftConflict, CopiedShift, EmployeeUnavailability, Store } from '../../types';
 import { Button } from '../common/Button';
 import { ContextMenu } from './ContextMenu';
 import { TemplateSelector } from './TemplateSelector';
@@ -89,7 +89,7 @@ export const ShiftCell: React.FC<ShiftCellProps> = ({
     if (weeklySchedule) {
       storeHours = weeklySchedule.openingHours[dayOfWeek];
     } else {
-      storeHours = store.openingHours[dayOfWeek];
+      storeHours = store.openingHours?.[dayOfWeek];
     }
     
     if (!storeHours) {
