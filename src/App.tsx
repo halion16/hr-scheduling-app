@@ -29,11 +29,13 @@ import { RefreshDataButton } from './components/common/RefreshDataButton';
 import { ApiSettings } from './components/settings/ApiSettings';
 import { EmployeeSyncModal } from './components/employees/EmployeeSyncModal';
 import { EmployeeDebugModal } from './components/debug/EmployeeDebugModal';
+import { ValidationConfigPanel } from './components/admin/ValidationConfigPanel';
 import { Users, Calendar, CalendarX } from 'lucide-react';
 import { exportScheduleToExcel, exportEmployeesToExcel } from './utils/exportUtils';
 import { getStartOfWeek, getEndOfWeek } from './utils/timeUtils';
+import { ValidationAdminSettings } from './types/validation';
 
-type ModalType = 'employee' | 'store' | 'preferences' | 'api-settings' | 'employee-sync' | 'debug' | null;
+type ModalType = 'employee' | 'store' | 'preferences' | 'api-settings' | 'employee-sync' | 'debug' | 'validation-config' | null;
 
 // Main App Component with Authentication
 function App() {
@@ -79,6 +81,44 @@ function AppContent() {
   const [modalType, setModalType] = useState<ModalType>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [editingStore, setEditingStore] = useState<Store | null>(null);
+  
+  // 🆕 CONFIGURAZIONI VALIDAZIONE AMMINISTRATORE
+  const [validationSettings, setValidationSettings] = useState<ValidationAdminSettings>({
+    enabled: true,
+    enableRealTimeValidation: true,
+    dynamicStaffRequirements: {
+      enabled: true,
+      useHourlyRequirements: false,
+      equityThreshold: 20,
+      maxHoursVariation: 8
+    },
+    coverageSettings: {
+      minimumStaffPerHour: 1,
+      minimumOverlapMinutes: 15,
+      allowSinglePersonCoverage: false,
+      criticalGapThresholdMinutes: 60
+    },
+    complianceSettings: {
+      enforceRestPeriods: true,
+      minimumRestHours: 11,
+      maxConsecutiveWorkDays: 6,
+      weeklyHourLimits: {
+        enabled: true,
+        maxWeeklyHours: 40,
+        overtimeThreshold: 38
+      }
+    },
+    alertSettings: {
+      scoreThreshold: 80,
+      enableWorkloadAlerts: true,
+      enableCoverageAlerts: true,
+      enableComplianceAlerts: true
+    },
+    storeSpecificSettings: {
+      enabled: false,
+      overrideGlobalSettings: false
+    }
+  });
 
   // 🆕 Forza refresh dati da localStorage
   const handleManualDataRefresh = () => {
@@ -96,6 +136,31 @@ function AppContent() {
       }
     });
   };
+
+  // 🆕 HANDLER CONFIGURAZIONI VALIDAZIONE
+  const handleSaveValidationSettings = (newSettings: ValidationAdminSettings) => {
+    setValidationSettings(newSettings);
+    
+    // Salva in localStorage per persistenza
+    localStorage.setItem('hr-validation-settings', JSON.stringify(newSettings));
+    
+    showSuccessNotification('Configurazioni validazione salvate con successo!');
+    console.log('🔧 Nuove configurazioni validazione salvate:', newSettings);
+  };
+
+  // Carica configurazioni salvate al mount
+  React.useEffect(() => {
+    const savedSettings = localStorage.getItem('hr-validation-settings');
+    if (savedSettings) {
+      try {
+        const parsedSettings = JSON.parse(savedSettings);
+        setValidationSettings(parsedSettings);
+        console.log('🔧 Configurazioni validazione caricate dal localStorage:', parsedSettings);
+      } catch (error) {
+        console.warn('⚠️ Errore caricamento configurazioni validazione:', error);
+      }
+    }
+  }, []);
 
   // 🆕 DEBUG: Check localStorage on mount
   useEffect(() => {
@@ -331,6 +396,7 @@ function AppContent() {
         onOpenPreferences={() => setModalType('preferences')}
         onOpenApiSettings={() => setModalType('api-settings')}
         onOpenDebug={() => setModalType('debug')}
+        onOpenValidationConfig={() => setModalType('validation-config')}
         onRefreshData={handleManualDataRefresh}
         dataStats={{
           employees: employees.length,
@@ -369,6 +435,7 @@ function AppContent() {
                       onShiftUpdate={updateShift}
                       onShiftCreate={addShift}
                       onShiftDelete={deleteShift}
+                      adminSettings={validationSettings}
                     />
                   </ProtectedRoute>
                 )}
@@ -599,6 +666,16 @@ function AppContent() {
         isOpen={modalType === 'debug'}
         onClose={() => setModalType(null)}
       />
+
+      {/* Modal Configurazione Validazione (Solo Admin) */}
+      {profile?.role === 'admin' && (
+        <ValidationConfigPanel
+          isOpen={modalType === 'validation-config'}
+          onClose={() => setModalType(null)}
+          currentSettings={validationSettings}
+          onSave={handleSaveValidationSettings}
+        />
+      )}
     </div>
   );
 }

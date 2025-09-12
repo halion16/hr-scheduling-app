@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useShiftGridValidation } from '../../hooks/useShiftGridValidation';
 import { Store, Shift, Employee } from '../../types';
-import { ValidationIssue } from '../../types/validation';
+import { ValidationIssue, ValidationAdminSettings } from '../../types/validation';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import { 
@@ -26,6 +26,7 @@ interface ValidationPanelProps {
   shifts: Shift[];
   employees: Employee[];
   weekStart: Date;
+  adminSettings?: ValidationAdminSettings;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
 }
@@ -35,24 +36,19 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({
   shifts,
   employees,
   weekStart,
+  adminSettings,
   isCollapsed = false,
   onToggleCollapse
 }) => {
   const [showDetails, setShowDetails] = useState(false);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
-  const [validationOptions, setValidationOptions] = useState({
-    minimumStaffPerHour: 1,
-    minimumOverlapMinutes: 15,
-    allowSinglePersonCoverage: false,
-    enableRealTimeValidation: true
-  });
 
   const validation = useShiftGridValidation({
     store,
     shifts,
     employees,
     weekStart,
-    options: validationOptions
+    adminSettings
   });
 
   if (isCollapsed) {

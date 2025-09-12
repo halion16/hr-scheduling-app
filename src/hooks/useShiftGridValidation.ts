@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Store, Shift, Employee } from '../types';
-import { ShiftGridValidationResult } from '../types/validation';
+import { ShiftGridValidationResult, ValidationAdminSettings } from '../types/validation';
 import { validateShiftGrid } from '../utils/shiftGridValidation';
 
 interface UseShiftGridValidationProps {
@@ -8,12 +8,7 @@ interface UseShiftGridValidationProps {
   shifts: Shift[];
   employees: Employee[];
   weekStart: Date;
-  options?: {
-    minimumStaffPerHour?: number;
-    minimumOverlapMinutes?: number;
-    allowSinglePersonCoverage?: boolean;
-    enableRealTimeValidation?: boolean;
-  };
+  adminSettings?: ValidationAdminSettings;
 }
 
 export const useShiftGridValidation = ({
@@ -21,19 +16,13 @@ export const useShiftGridValidation = ({
   shifts,
   employees,
   weekStart,
-  options = {}
+  adminSettings
 }: UseShiftGridValidationProps) => {
-  
-  const {
-    minimumStaffPerHour = 1,
-    minimumOverlapMinutes = 15,
-    allowSinglePersonCoverage = false,
-    enableRealTimeValidation = true
-  } = options;
 
   // Memoizza il risultato della validazione per evitare ricalcoli inutili
   const validationResult: ShiftGridValidationResult = useMemo(() => {
-    if (!enableRealTimeValidation) {
+    // Se adminSettings è definito ma validazione è disabilitata
+    if (adminSettings && (!adminSettings.enabled || !adminSettings.enableRealTimeValidation)) {
       return {
         isValid: true,
         score: 100,
@@ -47,16 +36,20 @@ export const useShiftGridValidation = ({
           warnings: 0
         },
         dailyResults: [],
-        overallIssues: []
+        overallIssues: [],
+        workloadDistribution: { employees: [], maxHours: 0, minHours: 0, averageHours: 0, standardDeviation: 0, isEquitable: true, inequityScore: 0 }
       };
     }
 
-    console.log('🔍 Esecuzione validazione griglia turni con preferenze negozio...');
+    console.log('🔍 Esecuzione validazione griglia turni con configurazioni admin...');
     const startTime = performance.now();
     
-    // Log store preferences being used
-    console.log('🏪 Preferenze negozio utilizzate:', {
+    // Log configurazioni utilizzate
+    console.log('🏪 Configurazioni utilizzate:', {
       storeName: store.name,
+      adminSettingsEnabled: adminSettings?.enabled ?? true,
+      realTimeValidation: adminSettings?.enableRealTimeValidation ?? true,
+      minimumStaffPerHour: adminSettings?.coverageSettings.minimumStaffPerHour ?? 1,
       weeklySchedules: store.weeklySchedules?.length || 0,
       closureDays: store.closureDays?.filter(c => {
         const weekEnd = new Date(weekStart);
@@ -66,11 +59,7 @@ export const useShiftGridValidation = ({
       staffRequirements: store.staffRequirements?.length || 0
     });
     
-    const result = validateShiftGrid(store, shifts, employees, weekStart, {
-      minimumStaffPerHour,
-      minimumOverlapMinutes,
-      allowSinglePersonCoverage
-    });
+    const result = validateShiftGrid(store, shifts, employees, weekStart, adminSettings);
     
     const endTime = performance.now();
     console.log(`⚡ Validazione completata in ${(endTime - startTime).toFixed(2)}ms`);
@@ -86,10 +75,13 @@ export const useShiftGridValidation = ({
     shifts.map(s => `${s.id}-${s.startTime}-${s.endTime}-${s.date.toISOString()}`).join(','),
     employees.length,
     weekStart.toISOString(),
-    minimumStaffPerHour,
-    minimumOverlapMinutes,
-    allowSinglePersonCoverage,
-    enableRealTimeValidation
+    adminSettings?.enabled,
+    adminSettings?.enableRealTimeValidation,
+    adminSettings?.coverageSettings.minimumStaffPerHour,
+    adminSettings?.coverageSettings.minimumOverlapMinutes,
+    adminSettings?.coverageSettings.allowSinglePersonCoverage,
+    adminSettings?.dynamicStaffRequirements.enabled,
+    adminSettings?.alertSettings.scoreThreshold
   ]);
 
   // Funzioni helper per accesso rapido ai dati

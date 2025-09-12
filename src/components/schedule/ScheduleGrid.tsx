@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Employee, Store, Shift, WeeklySchedule, Preferences, EmployeeUnavailability } from '../../types';
+import { ValidationAdminSettings } from '../../types/validation';
 import { ShiftCell } from './ShiftCell';
 import { ValidationPanel } from './ValidationPanel';
 import { formatDate, getWeekDays, getDayOfWeek, getStartOfWeek } from '../../utils/timeUtils';
@@ -18,6 +19,7 @@ interface ScheduleGridProps {
   onShiftUpdate: (id: string, updates: Partial<Shift>) => void;
   onShiftCreate: (shiftData: Omit<Shift, 'id' | 'createdAt' | 'updatedAt'>) => void;
   onShiftDelete: (shiftId: string) => void;
+  adminSettings?: ValidationAdminSettings;
 }
 
 export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
@@ -25,7 +27,8 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
   unavailabilities,
   onShiftUpdate,
   onShiftCreate,
-  onShiftDelete
+  onShiftDelete,
+  adminSettings
 }) => {
   const { weekStart, shifts, employees, store, preferences } = schedule;
   
@@ -452,6 +455,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
           shifts={optimizedWeeklyShifts}
           employees={activeEmployees}
           weekStart={weekStart}
+          adminSettings={adminSettings}
           isCollapsed={validationCollapsed}
           onToggleCollapse={() => setValidationCollapsed(!validationCollapsed)}
         />

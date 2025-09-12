@@ -21,6 +21,7 @@ interface NavigationBarProps {
   onOpenPreferences: () => void;
   onOpenApiSettings?: () => void;
   onOpenDebug?: () => void;
+  onOpenValidationConfig?: () => void;
   onRefreshData: () => void;
   dataStats: {
     employees: number;
@@ -39,6 +40,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
   onOpenPreferences,
   onOpenApiSettings,
   onOpenDebug,
+  onOpenValidationConfig,
   onRefreshData,
   dataStats,
   dataLoaded
@@ -117,6 +119,19 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                 title="Impostazioni API Aziendale"
               >
                 API
+              </Button>
+            )}
+
+            {onOpenValidationConfig && profile?.role === 'admin' && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={Shield}
+                onClick={onOpenValidationConfig}
+                className="text-purple-600 hover:text-purple-700 border-purple-300"
+                title="Configurazione Validazione Turni (Solo Admin)"
+              >
+                Validazione
               </Button>
             )}
 

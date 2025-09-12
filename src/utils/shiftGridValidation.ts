@@ -7,7 +7,11 @@ import {
   ValidationIssue,
   TimeGap,
   HourlyStaffCount,
-  UnderstaffedPeriod
+  UnderstaffedPeriod,
+  EmployeeShiftDetail,
+  EmployeeWorkload,
+  WorkloadDistribution,
+  ValidationAdminSettings
 } from '../types/validation';
 import { getDayOfWeek, getWeekDays, formatDate, addDays, getStartOfWeek, formatWeekNumber } from './timeUtils';
 
@@ -18,18 +22,14 @@ import { getDayOfWeek, getWeekDays, formatDate, addDays, getStartOfWeek, formatW
  * @param shifts - Lista di tutti i turni assegnati per la settimana
  * @param employees - Lista dei dipendenti
  * @param weekStart - Data di inizio settimana (lunedì)
- * @param options - Opzioni di configurazione per la validazione
+ * @param adminSettings - Configurazioni amministratore per la validazione
  */
 export function validateShiftGrid(
   store: Store,
   shifts: Shift[],
   employees: Employee[],
   weekStart: Date,
-  options: {
-    minimumStaffPerHour?: number;
-    minimumOverlapMinutes?: number;
-    allowSinglePersonCoverage?: boolean;
-  } = {}
+  adminSettings?: ValidationAdminSettings
 ): ShiftGridValidationResult {
   
   console.log('🔍 Avvio validazione griglia turni per settimana:', weekStart.toISOString());
@@ -41,11 +41,33 @@ export function validateShiftGrid(
     staffRequirements: store.staffRequirements?.length || 0
   });
   
-  const {
-    minimumStaffPerHour = 1,
-    minimumOverlapMinutes = 15,
-    allowSinglePersonCoverage = false
-  } = options;
+  // 🆕 Estrai configurazioni dalle impostazioni amministratore
+  const settings = adminSettings || {
+    enabled: true,
+    enableRealTimeValidation: true,
+    dynamicStaffRequirements: { enabled: true, useHourlyRequirements: false, equityThreshold: 20, maxHoursVariation: 8 },
+    coverageSettings: { minimumStaffPerHour: 1, minimumOverlapMinutes: 15, allowSinglePersonCoverage: false, criticalGapThresholdMinutes: 60 },
+    complianceSettings: { enforceRestPeriods: true, minimumRestHours: 11, maxConsecutiveWorkDays: 6, weeklyHourLimits: { enabled: true, maxWeeklyHours: 40, overtimeThreshold: 38 } },
+    alertSettings: { scoreThreshold: 80, enableWorkloadAlerts: true, enableCoverageAlerts: true, enableComplianceAlerts: true },
+    storeSpecificSettings: { enabled: false, overrideGlobalSettings: false }
+  };
+
+  // Se la validazione è disabilitata, restituisci risultato di base
+  if (!settings.enabled) {
+    console.log('⚠️ Validazione disabilitata dalle configurazioni amministratore');
+    return {
+      isValid: true,
+      score: 100,
+      summary: { totalDays: 7, validDays: 7, daysWithIssues: 0, daysWithoutShifts: 0, totalAnomalies: 0, criticalIssues: 0, warnings: 0 },
+      dailyResults: [],
+      overallIssues: [],
+      workloadDistribution: { employees: [], maxHours: 0, minHours: 0, averageHours: 0, standardDeviation: 0, isEquitable: true, inequityScore: 0 }
+    };
+  }
+
+  const minimumStaffPerHour = settings.coverageSettings.minimumStaffPerHour;
+  const minimumOverlapMinutes = settings.coverageSettings.minimumOverlapMinutes;
+  const allowSinglePersonCoverage = settings.coverageSettings.allowSinglePersonCoverage;
 
   // Genera i 7 giorni della settimana
   const weekDays = getWeekDays(weekStart);
@@ -65,8 +87,8 @@ export function validateShiftGrid(
     dailyResults.push(dayResult);
   }
 
-  // Analisi cross-giornaliera
-  analyzeCrossDay(dailyResults, overallIssues, employees);
+  // Analisi cross-giornaliera e distribuzione carico
+  const workloadDistribution = analyzeCrossDay(dailyResults, overallIssues, employees, shifts);
 
   // Calcola statistiche generali
   const summary = calculateSummary(dailyResults);
@@ -77,7 +99,8 @@ export function validateShiftGrid(
     score,
     summary,
     dailyResults,
-    overallIssues
+    overallIssues,
+    workloadDistribution
   };
 
   console.log('✅ Validazione completata. Score:', score, 'Valid:', result.isValid);
@@ -431,10 +454,29 @@ function analyzeStaffing(
     const recommendedMin = Math.max(dynamicMinStaff, 1);
     const isAdequate = staffCount >= recommendedMin;
 
+    // 🆕 CREA DETTAGLI DIPENDENTI PER QUESTA FASCIA ORARIA
+    const employeeShiftDetails: EmployeeShiftDetail[] = activeShifts.map(shift => {
+      const employee = employees.find(emp => emp.id === shift.employeeId);
+      const shiftStart = timeToMinutes(shift.startTime);
+      const shiftEnd = timeToMinutes(shift.endTime);
+      const hoursWorked = (Math.min(shiftEnd, hourEndMinutes) - Math.max(shiftStart, hourStartMinutes)) / 60;
+      
+      return {
+        employeeId: shift.employeeId,
+        employeeName: employee ? `${employee.firstName} ${employee.lastName}` : 'Dipendente sconosciuto',
+        shiftId: shift.id,
+        startTime: shift.startTime,
+        endTime: shift.endTime,
+        hoursWorked: Math.max(0, hoursWorked)
+      };
+    });
+
     hourlyStaffCount.push({
       hour: hourStart,
       staffCount,
       activeShifts: activeShifts.map(s => s.id),
+      activeEmployees: activeShifts.map(s => s.employeeId),
+      employeeShiftDetails,
       isAdequate,
       recommendedMin
     });
@@ -551,7 +593,7 @@ function checkOpeningClosingCoverage(
 }
 
 /**
- * Verifica copertura continua senza gap
+ * 🆕 VERIFICA COPERTURA CONTINUA MIGLIORATA - Considera sovrapposizioni multiple
  */
 function checkContinuousCoverage(
   shifts: Shift[],
@@ -561,49 +603,115 @@ function checkContinuousCoverage(
   minimumOverlapMinutes: number
 ): void {
   
-  if (shifts.length <= 1) return;
+  if (shifts.length === 0) return;
 
-  // Ordina turni per orario inizio
-  const sortedShifts = [...shifts].sort((a, b) => 
-    timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
-  );
+  const storeOpenMinutes = timeToMinutes(storeHours.open);
+  const storeCloseMinutes = timeToMinutes(storeHours.close);
+  const totalOperatingMinutes = storeCloseMinutes - storeOpenMinutes;
 
-  // Verifica sovrapposizioni tra turni consecutivi
-  for (let i = 0; i < sortedShifts.length - 1; i++) {
-    const currentShift = sortedShifts[i];
-    const nextShift = sortedShifts[i + 1];
+  // 🆕 CREA ARRAY BINARIO DI COPERTURA MINUTO-PER-MINUTO
+  const coverageArray = new Array(totalOperatingMinutes).fill(0);
+  
+  // Marca tutti i minuti coperti da ogni turno
+  shifts.forEach(shift => {
+    const shiftStart = Math.max(timeToMinutes(shift.startTime), storeOpenMinutes);
+    const shiftEnd = Math.min(timeToMinutes(shift.endTime), storeCloseMinutes);
     
-    const currentEnd = timeToMinutes(currentShift.endTime);
-    const nextStart = timeToMinutes(nextShift.startTime);
+    for (let minute = shiftStart; minute < shiftEnd; minute++) {
+      const index = minute - storeOpenMinutes;
+      if (index >= 0 && index < coverageArray.length) {
+        coverageArray[index] = 1; // Coperto
+      }
+    }
+  });
+
+  // 🆕 TROVA TUTTI I GAP REALI NELLA COPERTURA
+  const gaps = [];
+  let gapStart = -1;
+  
+  for (let i = 0; i < coverageArray.length; i++) {
+    if (coverageArray[i] === 0 && gapStart === -1) {
+      // Inizio nuovo gap
+      gapStart = i;
+    } else if (coverageArray[i] === 1 && gapStart !== -1) {
+      // Fine gap
+      const gapStartTime = minutesToTime(storeOpenMinutes + gapStart);
+      const gapEndTime = minutesToTime(storeOpenMinutes + i);
+      const durationMinutes = i - gapStart;
+      
+      if (durationMinutes > minimumOverlapMinutes) {
+        gaps.push({
+          startTime: gapStartTime,
+          endTime: gapEndTime,
+          durationMinutes,
+          severity: durationMinutes > 60 ? 'critical' as const : 'warning' as const
+        });
+      }
+      
+      gapStart = -1;
+    }
+  }
+
+  // Gap finale se termina senza copertura
+  if (gapStart !== -1) {
+    const gapStartTime = minutesToTime(storeOpenMinutes + gapStart);
+    const gapEndTime = storeHours.close;
+    const durationMinutes = coverageArray.length - gapStart;
     
-    const gap = nextStart - currentEnd;
-    
-    if (gap > minimumOverlapMinutes) {
-      issues.push({
-        type: 'coverage_gap',
-        severity: gap > 60 ? 'critical' : 'warning',
-        message: `Gap tra turni: ${currentShift.endTime} - ${nextShift.startTime}`,
-        description: `Pausa di ${gap} minuti tra i turni`,
-        suggestedAction: gap > 60 ? 'Aggiungere un turno per coprire il gap' : 'Considerare di estendere uno dei turni',
-        timeRange: {
-          start: currentShift.endTime,
-          end: nextShift.startTime
-        },
-        affectedShifts: [currentShift.id, nextShift.id],
-        date
+    if (durationMinutes > minimumOverlapMinutes) {
+      gaps.push({
+        startTime: gapStartTime,
+        endTime: gapEndTime,
+        durationMinutes,
+        severity: durationMinutes > 60 ? 'critical' as const : 'warning' as const
       });
     }
   }
+
+  // 🆕 CREA ISSUES PER OGNI GAP REALE TROVATO
+  gaps.forEach(gap => {
+    // Trova turni coinvolti nel gap
+    const affectedShifts = shifts.filter(shift => {
+      const shiftStart = timeToMinutes(shift.startTime);
+      const shiftEnd = timeToMinutes(shift.endTime);
+      const gapStart = timeToMinutes(gap.startTime);
+      const gapEnd = timeToMinutes(gap.endTime);
+      
+      // Turno finisce poco prima del gap o inizia poco dopo
+      return (shiftEnd <= gapStart + 30) || (shiftStart >= gapEnd - 30);
+    }).map(s => s.id);
+
+    issues.push({
+      type: 'coverage_gap',
+      severity: gap.severity,
+      message: `Gap di copertura reale: ${gap.startTime}-${gap.endTime}`,
+      description: `Nessun dipendente presente per ${gap.durationMinutes} minuti`,
+      suggestedAction: gap.durationMinutes > 60 
+        ? 'Aggiungere un turno per coprire completamente il gap' 
+        : 'Estendere turni esistenti o ridurre il gap',
+      timeRange: {
+        start: gap.startTime,
+        end: gap.endTime
+      },
+      affectedShifts,
+      date
+    });
+  });
+
+  console.log(`🔍 Analisi copertura continua: ${gaps.length} gap trovati su ${totalOperatingMinutes} minuti totali`);
 }
 
 /**
- * Analisi cross-giornaliera per pattern ricorrenti
+ * 🆕 ANALISI CROSS-DAY COMPLETA CON DISTRIBUZIONE CARICO LAVORO
  */
 function analyzeCrossDay(
   dailyResults: DailyValidationResult[],
   overallIssues: ValidationIssue[],
-  employees: Employee[]
-): void {
+  employees: Employee[],
+  allShifts: Shift[]
+): WorkloadDistribution {
+  
+  console.log('🔍 Inizio analisi cross-day con distribuzione carico lavoro...');
   
   // Verifica pattern di giorni senza turni
   const daysWithoutShifts = dailyResults.filter(day => 
@@ -620,19 +728,103 @@ function analyzeCrossDay(
     });
   }
 
-  // Verifica distribuzione equa del carico di lavoro
-  const employeeWorkload = new Map<string, number>();
+  // 🆕 CALCOLA DISTRIBUZIONE CARICO LAVORO PER DIPENDENTE
+  const employeeWorkloadMap = new Map<string, EmployeeWorkload>();
   
+  // Inizializza tutti i dipendenti
+  employees.forEach(emp => {
+    employeeWorkloadMap.set(emp.id, {
+      employeeId: emp.id,
+      employeeName: `${emp.firstName} ${emp.lastName}`,
+      totalHours: 0,
+      daysWorked: 0,
+      shifts: [],
+      dailyHours: {},
+      averageHoursPerDay: 0
+    });
+  });
+
+  // Calcola ore per dipendente usando i nuovi dati dettagliati
   dailyResults.forEach(day => {
+    const dateKey = day.date.toISOString().split('T')[0];
+    
     if (day.staffing.hourlyStaffCount) {
+      // Traccia dipendenti che hanno lavorato oggi
+      const dailyEmployeeHours = new Map<string, number>();
+      
       day.staffing.hourlyStaffCount.forEach(hourData => {
-        hourData.activeShifts.forEach(shiftId => {
-          // Qui dovremmo avere accesso ai dettagli del turno per ottenere l'employeeId
-          // Per ora usiamo un calcolo approssimativo
+        hourData.employeeShiftDetails?.forEach(detail => {
+          const current = dailyEmployeeHours.get(detail.employeeId) || 0;
+          dailyEmployeeHours.set(detail.employeeId, current + detail.hoursWorked);
         });
+      });
+
+      // Aggiorna workload totali
+      dailyEmployeeHours.forEach((hours, employeeId) => {
+        const workload = employeeWorkloadMap.get(employeeId);
+        if (workload) {
+          workload.totalHours += hours;
+          workload.dailyHours[dateKey] = hours;
+          if (hours > 0) {
+            workload.daysWorked++;
+          }
+        }
       });
     }
   });
+
+  // Aggiorna turni e medie
+  allShifts.forEach(shift => {
+    const workload = employeeWorkloadMap.get(shift.employeeId);
+    if (workload) {
+      workload.shifts.push(shift.id);
+    }
+  });
+
+  // Calcola medie
+  employeeWorkloadMap.forEach(workload => {
+    workload.averageHoursPerDay = workload.daysWorked > 0 
+      ? workload.totalHours / workload.daysWorked 
+      : 0;
+  });
+
+  const employeeWorkloads = Array.from(employeeWorkloadMap.values());
+  const workingEmployees = employeeWorkloads.filter(emp => emp.totalHours > 0);
+
+  // Statistiche distribuzione
+  const totalHours = workingEmployees.map(emp => emp.totalHours);
+  const maxHours = Math.max(...totalHours, 0);
+  const minHours = Math.min(...totalHours, maxHours);
+  const averageHours = totalHours.length > 0 
+    ? totalHours.reduce((sum, h) => sum + h, 0) / totalHours.length 
+    : 0;
+
+  // Calcola deviazione standard
+  const variance = totalHours.length > 0
+    ? totalHours.reduce((sum, h) => sum + Math.pow(h - averageHours, 2), 0) / totalHours.length
+    : 0;
+  const standardDeviation = Math.sqrt(variance);
+
+  // Calcola equità (soglia: deviazione standard < 20% della media)
+  const equityThreshold = averageHours * 0.2;
+  const isEquitable = standardDeviation <= equityThreshold;
+  const inequityScore = Math.min(100, (standardDeviation / Math.max(averageHours, 1)) * 100);
+
+  console.log(`📊 Analisi distribuzione: ${workingEmployees.length} dipendenti attivi, ore ${minHours}-${maxHours} (media: ${averageHours.toFixed(1)}, σ: ${standardDeviation.toFixed(1)})`);
+
+  // Issues per distribuzione non equa
+  if (!isEquitable && workingEmployees.length > 1) {
+    const maxWorker = workingEmployees.find(emp => emp.totalHours === maxHours);
+    const minWorker = workingEmployees.find(emp => emp.totalHours === minHours);
+    
+    overallIssues.push({
+      type: 'understaffed', // Riusiamo questo tipo
+      severity: inequityScore > 50 ? 'warning' : 'info',
+      message: 'Distribuzione carico lavoro non equa',
+      description: `${maxWorker?.employeeName} (${maxHours}h) vs ${minWorker?.employeeName} (${minHours}h). Differenza: ${(maxHours - minHours).toFixed(1)}h`,
+      suggestedAction: 'Rivedere assegnazione turni per distribuzione più equa'
+    });
+  }
 
   // Verifica pattern di sotto organico ricorrenti
   const recurringUnderstaffing = dailyResults.filter(day => 
@@ -648,6 +840,16 @@ function analyzeCrossDay(
       suggestedAction: 'Considerare di assumere personale aggiuntivo o rivedere i requisiti minimi'
     });
   }
+
+  return {
+    employees: employeeWorkloads,
+    maxHours,
+    minHours,
+    averageHours: Number(averageHours.toFixed(1)),
+    standardDeviation: Number(standardDeviation.toFixed(1)),
+    isEquitable,
+    inequityScore: Number(inequityScore.toFixed(1))
+  };
 }
 
 /**
@@ -741,5 +943,18 @@ function createEmptyStaffing(): StaffingAnalysis {
     averageStaffCount: 0,
     understaffedPeriods: [],
     recommendedMinimumStaff: 1
+  };
+}
+
+// 🆕 CREA DISTRIBUZIONE WORKLOAD VUOTA
+function createEmptyWorkloadDistribution(): WorkloadDistribution {
+  return {
+    employees: [],
+    maxHours: 0,
+    minHours: 0,
+    averageHours: 0,
+    standardDeviation: 0,
+    isEquitable: true,
+    inequityScore: 0
   };
 }

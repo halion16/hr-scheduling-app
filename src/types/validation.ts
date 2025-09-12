@@ -12,6 +12,7 @@ export interface ShiftGridValidationResult {
   };
   dailyResults: DailyValidationResult[];
   overallIssues: ValidationIssue[];
+  workloadDistribution: WorkloadDistribution; // Nuova analisi distribuzione carico
 }
 
 export interface DailyValidationResult {
@@ -60,6 +61,8 @@ export interface HourlyStaffCount {
   hour: string; // "09:00"
   staffCount: number;
   activeShifts: string[]; // shift IDs
+  activeEmployees: string[]; // employee IDs
+  employeeShiftDetails: EmployeeShiftDetail[]; // detailed employee info
   isAdequate: boolean;
   recommendedMin: number;
 }
@@ -85,4 +88,103 @@ export interface ValidationIssue {
   };
   affectedShifts?: string[];
   date?: Date;
+}
+
+// Nuove interfacce per tracking dipendenti
+export interface EmployeeShiftDetail {
+  employeeId: string;
+  employeeName: string;
+  shiftId: string;
+  startTime: string;
+  endTime: string;
+  hoursWorked: number;
+}
+
+export interface EmployeeWorkload {
+  employeeId: string;
+  employeeName: string;
+  totalHours: number;
+  daysWorked: number;
+  shifts: string[];
+  dailyHours: { [date: string]: number };
+  averageHoursPerDay: number;
+}
+
+export interface WorkloadDistribution {
+  employees: EmployeeWorkload[];
+  maxHours: number;
+  minHours: number;
+  averageHours: number;
+  standardDeviation: number;
+  isEquitable: boolean; // true se distribuzione è equa
+  inequityScore: number; // 0-100, più alto = meno equo
+}
+
+// 🆕 CONFIGURAZIONI AMMINISTRATORE PER VALIDAZIONE
+export interface ValidationAdminSettings {
+  // Configurazioni base
+  enabled: boolean;
+  enableRealTimeValidation: boolean;
+  
+  // Requisiti staff
+  dynamicStaffRequirements: {
+    enabled: boolean;
+    useHourlyRequirements: boolean;
+    equityThreshold: number; // % soglia per distribuzione equa
+    maxHoursVariation: number; // massima differenza ore tra dipendenti
+  };
+  
+  // Copertura turni
+  coverageSettings: {
+    minimumStaffPerHour: number;
+    minimumOverlapMinutes: number;
+    allowSinglePersonCoverage: boolean;
+    criticalGapThresholdMinutes: number; // soglia gap critico
+  };
+  
+  // CCNL e compliance
+  complianceSettings: {
+    enforceRestPeriods: boolean;
+    minimumRestHours: number;
+    maxConsecutiveWorkDays: number;
+    weeklyHourLimits: {
+      enabled: boolean;
+      maxWeeklyHours: number;
+      overtimeThreshold: number;
+    };
+  };
+  
+  // Notifiche e soglie
+  alertSettings: {
+    scoreThreshold: number; // sotto questa soglia = allerta
+    enableWorkloadAlerts: boolean;
+    enableCoverageAlerts: boolean;
+    enableComplianceAlerts: boolean;
+  };
+  
+  // Personalizzazione per negozio
+  storeSpecificSettings: {
+    enabled: boolean;
+    overrideGlobalSettings: boolean;
+  };
+}
+
+export interface HourlyStaffRequirement {
+  storeId: string;
+  dayOfWeek: string; // "lunedì", "martedì", etc.
+  timeSlots: TimeSlotRequirement[];
+  isActive: boolean;
+  priority: 'low' | 'medium' | 'high';
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface TimeSlotRequirement {
+  startTime: string; // "09:00"
+  endTime: string;   // "13:00"
+  minStaff: number;
+  maxStaff: number;
+  preferredStaff: number;
+  requiredRoles?: string[];
+  description?: string; // "Apertura", "Pranzo", "Sera", etc.
 }
