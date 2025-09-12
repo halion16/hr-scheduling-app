@@ -10,6 +10,7 @@ export interface NavigationItem {
   icon: React.ComponentType<any>;
   permission: string;
   minRole: 'admin' | 'manager' | 'user';
+  alertCount?: number;
 }
 
 interface NavigationBarProps {
@@ -165,11 +166,13 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
           <nav className="flex flex-wrap items-center justify-center gap-1 max-w-full">
             {navigation.map((item) => {
               const Icon = item.icon;
+              const hasAlerts = item.alertCount && item.alertCount > 0;
+              
               return (
                 <button
                   key={item.id}
                   onClick={() => onViewChange(item.id)}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors hover:scale-105 ${
+                  className={`relative flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors hover:scale-105 ${
                     currentView === item.id
                       ? 'bg-blue-600 text-white shadow-md'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
@@ -177,6 +180,15 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                 >
                   <Icon className="h-4 w-4" />
                   <span className="whitespace-nowrap">{item.name}</span>
+                  {hasAlerts && (
+                    <span className={`absolute -top-1 -right-1 min-w-[1.25rem] h-5 flex items-center justify-center text-xs font-bold rounded-full px-1 ${
+                      item.alertCount > 5 
+                        ? 'bg-red-500 text-white'
+                        : 'bg-orange-500 text-white'
+                    }`}>
+                      {item.alertCount > 99 ? '99+' : item.alertCount}
+                    </span>
+                  )}
                 </button>
               );
             })}

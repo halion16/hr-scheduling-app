@@ -31,6 +31,8 @@ import { EmployeeSyncModal } from './components/employees/EmployeeSyncModal';
 import { EmployeeDebugModal } from './components/debug/EmployeeDebugModal';
 import { ValidationConfigPanel } from './components/admin/ValidationConfigPanel';
 import { WorkloadDashboard } from './components/workload/WorkloadDashboard';
+import { AlertPanel } from './components/alerts/AlertPanel';
+import { useWorkloadAlerts } from './hooks/useWorkloadAlerts';
 import { Users, Calendar, CalendarX } from 'lucide-react';
 import { exportScheduleToExcel, exportEmployeesToExcel } from './utils/exportUtils';
 import { getStartOfWeek, getEndOfWeek } from './utils/timeUtils';
@@ -120,6 +122,29 @@ function AppContent() {
       overrideGlobalSettings: false
     }
   });
+
+  // 🆕 SISTEMA ALERT WORKLOAD
+  const workloadAlerts = useWorkloadAlerts({
+    employees,
+    shifts,
+    stores,
+    weekStart: currentWeek,
+    adminSettings: validationSettings,
+    enabled: validationSettings.alertSettings.enableWorkloadAlerts
+  });
+
+  // 🆕 Aggiungi contatori alert alla navigazione
+  const navigationWithAlerts = React.useMemo(() => {
+    return navigation.map(navItem => {
+      if (navItem.id === 'workload-dashboard') {
+        return {
+          ...navItem,
+          alertCount: workloadAlerts.alertSummary.total
+        };
+      }
+      return navItem;
+    });
+  }, [navigation, workloadAlerts.alertSummary.total]);
 
   // 🆕 Forza refresh dati da localStorage
   const handleManualDataRefresh = () => {
@@ -391,7 +416,7 @@ function AppContent() {
       <NavigationBar
         profile={profile}
         currentView={currentView}
-        navigation={navigation}
+        navigation={navigationWithAlerts}
         onViewChange={setCurrentView}
         onSignOut={signOut}
         onOpenPreferences={() => setModalType('preferences')}
@@ -466,13 +491,31 @@ function AppContent() {
 
                 {currentView === 'workload-dashboard' && (
                   <ProtectedRoute requiredPermission="view_analytics">
-                    <WorkloadDashboard
-                      employees={employees}
-                      shifts={shifts}
-                      stores={stores}
-                      weekStart={currentWeek}
-                      adminSettings={validationSettings}
-                    />
+                    <div className="space-y-6">
+                      {/* Alert Panel */}
+                      {workloadAlerts.hasAlerts && (
+                        <AlertPanel
+                          alerts={workloadAlerts.alerts}
+                          alertSummary={workloadAlerts.alertSummary}
+                          onAlertDismiss={(alertId) => {
+                            console.log('Alert dismissed:', alertId);
+                          }}
+                          onAlertAction={(alert) => {
+                            console.log('Alert action:', alert);
+                            showSuccessNotification(`Azione richiesta per: ${alert.title}`);
+                          }}
+                        />
+                      )}
+                      
+                      {/* Workload Dashboard */}
+                      <WorkloadDashboard
+                        employees={employees}
+                        shifts={shifts}
+                        stores={stores}
+                        weekStart={currentWeek}
+                        adminSettings={validationSettings}
+                      />
+                    </div>
                   </ProtectedRoute>
                 )}
               </>
