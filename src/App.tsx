@@ -9,7 +9,7 @@ import { usePreferences } from './hooks/usePreferences';
 import { useDataLoadingIndicator } from './hooks/useDataLoadingIndicator';
 import { useNotifications } from './hooks/useNotifications';
 import { useNavigation, View } from './hooks/useNavigation';
-import { NavigationBar } from './components/navigation/NavigationBar';
+import { Sidebar } from './components/navigation/Sidebar';
 
 import { EmployeeList } from './components/employees/EmployeeList';
 import { EmployeeForm } from './components/employees/EmployeeForm';
@@ -458,26 +458,28 @@ function AppContent() {
         </div>
       )}
 
-      <NavigationBar
-        profile={profile}
-        currentView={currentView}
-        navigation={navigationWithAlerts}
-        onViewChange={setCurrentView}
-        onSignOut={signOut}
-        onOpenPreferences={() => setModalType('preferences')}
-        onOpenApiSettings={() => setModalType('api-settings')}
-        onOpenDebug={() => setModalType('debug')}
-        onOpenValidationConfig={() => setModalType('validation-config')}
-        onRefreshData={handleManualDataRefresh}
-        dataStats={{
-          employees: employees.length,
-          stores: stores.length,
-          shifts: shifts.length
-        }}
-        dataLoaded={dataLoaded}
-      />
+      <div className="flex h-screen">
+        <Sidebar
+          profile={profile}
+          currentView={currentView}
+          navigation={navigationWithAlerts}
+          onViewChange={setCurrentView}
+          onSignOut={signOut}
+          onOpenPreferences={() => setModalType('preferences')}
+          onOpenApiSettings={() => setModalType('api-settings')}
+          onOpenDebug={() => setModalType('debug')}
+          onOpenValidationConfig={() => setModalType('validation-config')}
+          onRefreshData={handleManualDataRefresh}
+          dataStats={{
+            employees: employees.length,
+            stores: stores.length,
+            shifts: shifts.length
+          }}
+          dataLoaded={dataLoaded}
+        />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <main className="flex-1 overflow-auto bg-gray-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {(currentView === 'schedule' || currentView === 'timeline' || currentView === 'validation' || currentView === 'workload-dashboard') && (
           <ProtectedRoute requiredPermission="manage_shifts">
           <div className="space-y-6">
@@ -717,9 +719,9 @@ function AppContent() {
             <UserManagement stores={stores} />
           </ProtectedRoute>
         )}
-      </main>
+          </div>
 
-      <Modal
+          <Modal
         isOpen={modalType === 'employee'}
         onClose={() => {
           setModalType(null);
@@ -804,6 +806,8 @@ function AppContent() {
           onSave={handleSaveValidationSettings}
         />
       )}
+        </main>
+      </div>
     </div>
   );
 }
