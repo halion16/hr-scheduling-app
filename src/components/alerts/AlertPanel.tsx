@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { WorkloadAlert, AlertSummary } from '../../hooks/useWorkloadAlerts';
+import { Store as StoreType } from '../../types';
 import { Button } from '../common/Button';
 import {
   AlertTriangle,
@@ -21,22 +22,44 @@ import {
 interface AlertPanelProps {
   alerts: WorkloadAlert[];
   alertSummary: AlertSummary;
+  stores: StoreType[];
+  selectedStoreId?: string;
   onAlertDismiss?: (alertId: string) => void;
   onAlertAction?: (alert: WorkloadAlert) => void;
+  onStoreFilterChange?: (storeId: string) => void;
+  // 🆕 Nuovi handler per azioni specifiche
+  onJustifyUnderload?: (alert: WorkloadAlert, reason: string) => void;
+  onMoveToHourBank?: (alert: WorkloadAlert, hours: number) => void;
   className?: string;
 }
 
 export const AlertPanel: React.FC<AlertPanelProps> = ({
   alerts,
   alertSummary,
+  stores,
+  selectedStoreId,
   onAlertDismiss,
   onAlertAction,
+  onStoreFilterChange,
+  onJustifyUnderload,
+  onMoveToHourBank,
   className = ""
 }) => {
+  // 🔍 DEBUG: Log props AlertPanel
+  console.log('🔍 AlertPanel DEBUG:', {
+    selectedStoreId,
+    storesCount: stores.length,
+    alertsCount: alerts.length,
+    onStoreFilterChange: !!onStoreFilterChange
+  });
   const [filterType, setFilterType] = useState<WorkloadAlert['type'] | 'all'>('all');
   const [filterSeverity, setFilterSeverity] = useState<WorkloadAlert['severity'] | 'all'>('all');
   const [showDismissed, setShowDismissed] = useState(false);
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
+  
+  // 🆕 Stato per modal risoluzione sottoutilizzo
+  const [resolvingAlert, setResolvingAlert] = useState<WorkloadAlert | null>(null);
+  const [resolveReason, setResolveReason] = useState('');
 
   // Filtra alert
   const filteredAlerts = alerts.filter(alert => {
@@ -135,6 +158,20 @@ export const AlertPanel: React.FC<AlertPanelProps> = ({
             <span className="text-sm font-medium text-gray-700">Filtri:</span>
           </div>
 
+          {/* 🆕 Filtro per Negozio */}
+          {stores.length > 1 && onStoreFilterChange && (
+            <select
+              value={selectedStoreId || 'all'}
+              onChange={(e) => onStoreFilterChange(e.target.value === 'all' ? '' : e.target.value)}
+              className="px-3 py-1 text-xs border border-gray-300 rounded-md bg-blue-50 border-blue-200"
+            >
+              <option value="all">🏪 Tutti i Negozi</option>
+              {stores.map(store => (
+                <option key={store.id} value={store.id}>{store.name}</option>
+              ))}
+            </select>
+          )}
+
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value as any)}
@@ -173,10 +210,27 @@ export const AlertPanel: React.FC<AlertPanelProps> = ({
         </div>
       </div>
 
-      {/* Lista Alert */}
-      <div className="space-y-3">
+      {/* Lista Alert con Scorrimento */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        {/* Header della lista */}
+        {filteredAlerts.length > 0 && (
+          <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 rounded-t-lg">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-gray-900">
+                Alert Attivi ({filteredAlerts.length})
+              </h3>
+              {filteredAlerts.length > 4 && (
+                <span className="text-xs text-gray-500 flex items-center">
+                  <span className="inline-block w-2 h-2 bg-blue-400 rounded-full mr-1"></span>
+                  Scorri per vedere tutti
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+        
         {filteredAlerts.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+          <div className="p-8 text-center">
             <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-3" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">Nessun Alert</h3>
             <p className="text-gray-600">
@@ -186,7 +240,9 @@ export const AlertPanel: React.FC<AlertPanelProps> = ({
             </p>
           </div>
         ) : (
-          filteredAlerts.map((alert) => {
+          <div className="max-h-96 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+            <div className="space-y-3">
+              {filteredAlerts.map((alert) => {
             const isDismissed = dismissedAlerts.has(alert.id);
             
             return (
@@ -196,67 +252,42 @@ export const AlertPanel: React.FC<AlertPanelProps> = ({
                   isDismissed ? 'opacity-60' : ''
                 } ${alert.severity === 'critical' ? 'ring-1 ring-red-200' : ''}`}
               >
-                <div className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start space-x-3 flex-1">
+                <div className="p-3">
+                  {/* Header compatto con titolo e azioni */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-2 flex-1">
                       {getSeverityIcon(alert.severity)}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <h3 className="text-sm font-semibold text-gray-900">{alert.title}</h3>
-                          <div className="flex items-center space-x-1">
-                            {getTypeIcon(alert.type)}
-                            <span className="text-xs text-gray-500">{getTypeLabel(alert.type)}</span>
-                          </div>
-                          {alert.actionRequired && (
-                            <span className="inline-flex px-2 py-0.5 text-xs font-medium text-red-700 bg-red-100 rounded-full">
-                              Azione Richiesta
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-700 mb-2">{alert.message}</p>
-                        
-                        {/* Dettagli aggiuntivi */}
-                        <div className="flex items-center space-x-4 text-xs text-gray-500">
-                          <div className="flex items-center space-x-1">
-                            <Clock className="h-3 w-3" />
-                            <span>{alert.timestamp.toLocaleTimeString('it-IT', { 
-                              hour: '2-digit', 
-                              minute: '2-digit' 
-                            })}</span>
-                          </div>
-                          
-                          {alert.employeeName && (
-                            <div className="flex items-center space-x-1">
-                              <Users className="h-3 w-3" />
-                              <span>{alert.employeeName}</span>
-                            </div>
-                          )}
-                          
-                          {alert.storeName && (
-                            <div className="flex items-center space-x-1">
-                              <Store className="h-3 w-3" />
-                              <span>{alert.storeName}</span>
-                            </div>
-                          )}
-                          
-                          <div>
-                            Valore: <strong>{alert.currentValue}</strong>
-                            {alert.type !== 'equity_critical' && (
-                              <span> / {alert.thresholdValue}</span>
-                            )}
-                          </div>
-                        </div>
+                      <h3 className="text-sm font-semibold text-gray-900">{alert.title}</h3>
+                      <div className="flex items-center space-x-1">
+                        {getTypeIcon(alert.type)}
+                        <span className="text-xs text-gray-500">{getTypeLabel(alert.type)}</span>
                       </div>
+                      {alert.actionRequired && (
+                        <span className="inline-flex px-2 py-0.5 text-xs font-medium text-red-700 bg-red-100 rounded-full">
+                          Azione Richiesta
+                        </span>
+                      )}
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center space-x-2 ml-4">
-                      {alert.actionRequired && !isDismissed && (
+                    {/* Actions compatte */}
+                    <div className="flex items-center space-x-1">
+                      {alert.type === 'underloaded' && alert.actionRequired && !isDismissed && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => setResolvingAlert(alert)}
+                          className="text-xs px-2 py-1 bg-orange-600 hover:bg-orange-700"
+                        >
+                          Risolvi
+                        </Button>
+                      )}
+                      
+                      {alert.actionRequired && alert.type !== 'underloaded' && !isDismissed && (
                         <Button
                           variant="primary"
                           size="sm"
                           onClick={() => handleAction(alert)}
-                          className="text-xs"
+                          className="text-xs px-2 py-1"
                         >
                           Risolvi
                         </Button>
@@ -275,30 +306,196 @@ export const AlertPanel: React.FC<AlertPanelProps> = ({
                       </button>
                     </div>
                   </div>
+
+                  {/* Messaggio compatto */}
+                  <p className="text-sm text-gray-700 mb-2 ml-7">{alert.message}</p>
+                  
+                  {/* Info layout orizzontale compatto */}
+                  <div className="flex items-center justify-between ml-7">
+                    {/* Dettagli a sinistra */}
+                    <div className="flex items-center space-x-3 text-xs text-gray-500">
+                      <div className="flex items-center space-x-1">
+                        <Clock className="h-3 w-3" />
+                        <span>{alert.timestamp.toLocaleTimeString('it-IT', { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}</span>
+                      </div>
+                      
+                      {alert.employeeName && (
+                        <div className="flex items-center space-x-1">
+                          <Users className="h-3 w-3" />
+                          <span>{alert.employeeName}</span>
+                        </div>
+                      )}
+                      
+                      {alert.storeName && (
+                        <div className="flex items-center space-x-1">
+                          <Store className="h-3 w-3" />
+                          <span>{alert.storeName}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Valori e ore a destra */}
+                    <div className="flex items-center space-x-3 text-xs">
+                      <div className="text-gray-600">
+                        <strong>{alert.currentValue}</strong>
+                        {alert.type !== 'equity_critical' && (
+                          <span className="text-gray-500"> / {alert.thresholdValue}</span>
+                        )}
+                      </div>
+                      
+                      {/* Ore in eccesso/difetto inline */}
+                      {alert.excessHours && (
+                        <div className="flex items-center space-x-1 text-red-600 bg-red-50 px-2 py-1 rounded">
+                          <TrendingUp className="h-3 w-3" />
+                          <span className="font-medium">+{alert.excessHours}h</span>
+                        </div>
+                      )}
+                      {alert.deficitHours && (
+                        <div className="flex items-center space-x-1 text-orange-600 bg-orange-50 px-2 py-1 rounded">
+                          <TrendingDown className="h-3 w-3" />
+                          <span className="font-medium">-{alert.deficitHours}h</span>
+                        </div>
+                      )}
+                      {alert.contractHours && (
+                        <div className="text-gray-500">
+                          <span>Max: {alert.contractHours}h</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             );
-          })
+              })}
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Summary by Type */}
-      {alertSummary.total > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Riepilogo per Tipo</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {Object.entries(alertSummary.byType).map(([type, count]) => {
-              if (count === 0) return null;
-              return (
-                <div key={type} className="text-center p-2 bg-gray-50 rounded-lg">
-                  <div className="flex items-center justify-center mb-1">
-                    {getTypeIcon(type as WorkloadAlert['type'])}
-                  </div>
-                  <p className="text-xs text-gray-600">{getTypeLabel(type as WorkloadAlert['type'])}</p>
-                  <p className="text-lg font-bold text-gray-900">{count}</p>
+
+      {/* 🆕 Modal Risoluzione Sottoutilizzo */}
+      {resolvingAlert && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Risolvi Sottoutilizzo
+                </h3>
+                <button
+                  onClick={() => {
+                    setResolvingAlert(null);
+                    setResolveReason('');
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <div className="mb-4">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Users className="h-4 w-4 text-gray-500" />
+                  <span className="font-medium">{resolvingAlert.employeeName}</span>
                 </div>
-              );
-            })}
+                <div className="text-sm text-gray-600 space-y-1">
+                  <div>Ore attuali: <strong>{resolvingAlert.currentValue}h</strong></div>
+                  <div>Ore minime richieste: <strong>{resolvingAlert.thresholdValue}h</strong></div>
+                  <div className="text-orange-600">
+                    Difetto: <strong>{resolvingAlert.deficitHours}h</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-sm text-gray-700 mb-4">
+                  Come vuoi risolvere questo sottoutilizzo?
+                </p>
+
+                {/* Opzione 1: Giustifica */}
+                <button
+                  onClick={() => {
+                    if (onJustifyUnderload && resolvingAlert) {
+                      onJustifyUnderload(resolvingAlert, resolveReason || 'Sottoutilizzo giustificato');
+                      setResolvingAlert(null);
+                      setResolveReason('');
+                    }
+                  }}
+                  className="w-full p-3 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors text-left"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                      <CheckCircle className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-gray-900">Giustifica Sottoutilizzo</div>
+                      <div className="text-xs text-gray-600">
+                        Permessi, malattie, ferie o altre assenze giustificate
+                      </div>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Opzione 2: Banca Ore */}
+                {resolvingAlert.canMoveToHourBank && (
+                  <button
+                    onClick={() => {
+                      if (onMoveToHourBank && resolvingAlert?.deficitHours) {
+                        onMoveToHourBank(resolvingAlert, resolvingAlert.deficitHours);
+                        setResolvingAlert(null);
+                        setResolveReason('');
+                      }
+                    }}
+                    className="w-full p-3 border border-green-200 rounded-lg hover:bg-green-50 transition-colors text-left"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                        <Clock className="h-4 w-4 text-green-600" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">Sposta in Banca Ore</div>
+                        <div className="text-xs text-gray-600">
+                          Le {resolvingAlert.deficitHours}h saranno recuperate successivamente
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                )}
+
+                {/* Campo Note (opzionale) */}
+                <div className="mt-4">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Note aggiuntive (opzionale)
+                  </label>
+                  <textarea
+                    value={resolveReason}
+                    onChange={(e) => setResolveReason(e.target.value)}
+                    placeholder="Aggiungi una nota per spiegare la risoluzione..."
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={2}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 rounded-b-lg">
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    setResolvingAlert(null);
+                    setResolveReason('');
+                  }}
+                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+                >
+                  Annulla
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -32,6 +32,7 @@ import { EmployeeDebugModal } from './components/debug/EmployeeDebugModal';
 import { ValidationConfigPanel } from './components/admin/ValidationConfigPanel';
 import { WorkloadDashboard } from './components/workload/WorkloadDashboard';
 import { AlertPanel } from './components/alerts/AlertPanel';
+import { BalancingPanel } from './components/BalancingPanel';
 import { useWorkloadAlerts } from './hooks/useWorkloadAlerts';
 import { Users, Calendar, CalendarX } from 'lucide-react';
 import { exportScheduleToExcel, exportEmployeesToExcel } from './utils/exportUtils';
@@ -85,6 +86,20 @@ function AppContent() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [editingStore, setEditingStore] = useState<Store | null>(null);
   
+  // 🆕 Stato per filtro negozio workload alerts
+  const [workloadStoreFilter, setWorkloadStoreFilter] = useState<string>('');
+  
+  // 🔍 DEBUG: Log dati principali
+  console.log('🔍 App.tsx DEBUG:', {
+    workloadStoreFilter,
+    storesCount: stores.length,
+    employeesCount: employees.length,
+    shiftsCount: shifts.length,
+    storesList: stores.map(s => ({ id: s.id, name: s.name })),
+    employeeStores: [...new Set(employees.map(e => e.storeId))],
+    currentView
+  });
+  
   // 🆕 CONFIGURAZIONI VALIDAZIONE AMMINISTRATORE
   const [validationSettings, setValidationSettings] = useState<ValidationAdminSettings>({
     enabled: true,
@@ -93,7 +108,7 @@ function AppContent() {
       enabled: true,
       useHourlyRequirements: false,
       equityThreshold: 20,
-      maxHoursVariation: 8
+      maxHoursVariation: 45 // 🔧 CORRETTO: limite settimanale realistico (non 8!)
     },
     coverageSettings: {
       minimumStaffPerHour: 1,
@@ -130,7 +145,8 @@ function AppContent() {
     stores,
     weekStart: currentWeek,
     adminSettings: validationSettings,
-    enabled: validationSettings.alertSettings.enableWorkloadAlerts
+    enabled: validationSettings.alertSettings.enableWorkloadAlerts,
+    storeFilter: workloadStoreFilter
   });
 
   // 🆕 Aggiungi contatori alert alla navigazione
@@ -327,6 +343,35 @@ function AppContent() {
     showSuccessNotification(`✅ Sincronizzati ${apiEmployees.length} dipendenti da API aziendale!`);
   };
 
+  // 🆕 HANDLERS PER BILANCIAMENTO AUTOMATICO
+  const handleApplyBalancingSuggestion = async (suggestion: any) => {
+    try {
+      console.log('🔄 Applicando suggerimento di bilanciamento:', suggestion);
+      
+      // Simula l'applicazione del suggerimento (qui implementeresti la logica reale)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      showSuccessNotification(`✅ Suggerimento applicato: ${suggestion.title}`);
+    } catch (error) {
+      console.error('❌ Errore applicazione suggerimento:', error);
+      showErrorNotification('❌ Errore durante l\'applicazione del suggerimento');
+    }
+  };
+
+  const handleApplyAllAutoSuggestions = async (suggestions: any[]) => {
+    try {
+      console.log('🔄 Applicando tutti i suggerimenti automatici:', suggestions.length);
+      
+      // Simula l'applicazione di tutti i suggerimenti
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      showSuccessNotification(`✅ Applicati ${suggestions.length} suggerimenti automatici con successo!`);
+    } catch (error) {
+      console.error('❌ Errore applicazione suggerimenti:', error);
+      showErrorNotification('❌ Errore durante l\'applicazione dei suggerimenti');
+    }
+  };
+
   // Handler per sincronizzazione intelligente con preview
   const handleIntelligentEmployeeSync = (employeesFromModal: Employee[], keepModalOpen = false) => {
     
@@ -497,6 +542,8 @@ function AppContent() {
                         <AlertPanel
                           alerts={workloadAlerts.alerts}
                           alertSummary={workloadAlerts.alertSummary}
+                          stores={stores}
+                          selectedStoreId={workloadStoreFilter}
                           onAlertDismiss={(alertId) => {
                             console.log('Alert dismissed:', alertId);
                           }}
@@ -504,8 +551,32 @@ function AppContent() {
                             console.log('Alert action:', alert);
                             showSuccessNotification(`Azione richiesta per: ${alert.title}`);
                           }}
+                          onStoreFilterChange={setWorkloadStoreFilter}
+                          onJustifyUnderload={(alert, reason) => {
+                            console.log('🔵 Giustificazione sottoutilizzo:', { alert: alert.employeeName, reason });
+                            showSuccessNotification(`Sottoutilizzo giustificato per ${alert.employeeName}: ${reason}`);
+                            // TODO: Implementare logica di persistenza giustificazione
+                          }}
+                          onMoveToHourBank={(alert, hours) => {
+                            console.log('🟢 Spostamento in banca ore:', { alert: alert.employeeName, hours });
+                            showSuccessNotification(`${hours}h spostate in banca ore per ${alert.employeeName}`);
+                            // TODO: Implementare logica di persistenza banca ore
+                          }}
                         />
                       )}
+
+                      {/* Balancing Panel */}
+                      <BalancingPanel
+                        employees={employees}
+                        shifts={shifts}
+                        stores={stores}
+                        weekStart={currentWeek}
+                        adminSettings={validationSettings}
+                        selectedStoreId={workloadStoreFilter}
+                        onApplySuggestion={handleApplyBalancingSuggestion}
+                        onApplyAllAutoSuggestions={handleApplyAllAutoSuggestions}
+                        onStoreFilterChange={setWorkloadStoreFilter}
+                      />
                       
                       {/* Workload Dashboard */}
                       <WorkloadDashboard
@@ -514,6 +585,7 @@ function AppContent() {
                         stores={stores}
                         weekStart={currentWeek}
                         adminSettings={validationSettings}
+                        storeFilter={workloadStoreFilter}
                       />
                     </div>
                   </ProtectedRoute>

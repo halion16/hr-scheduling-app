@@ -39,6 +39,7 @@ interface WorkloadDashboardProps {
   stores: Store[];
   weekStart: Date;
   adminSettings?: ValidationAdminSettings;
+  storeFilter?: string; // 🆕 Filtro per negozio specifico
 }
 
 interface EmployeeWorkloadStats {
@@ -51,6 +52,10 @@ interface EmployeeWorkloadStats {
   isOverloaded: boolean;
   isUnderloaded: boolean;
   equityScore: number;
+  // 🆕 Nuovi campi per limiti individuali
+  contractHours: number;
+  minHours: number;
+  contractUtilization: number;
 }
 
 interface WorkloadSummary {
@@ -63,6 +68,9 @@ interface WorkloadSummary {
   equityScore: number;
   overloadedCount: number;
   underloadedCount: number;
+  // 🆕 Nuovi campi per utilizzo contratti
+  averageContractUtilization: number;
+  optimallyUtilizedCount: number;
 }
 
 interface EquityTrendData {
@@ -92,11 +100,18 @@ export const WorkloadDashboard: React.FC<WorkloadDashboardProps> = ({
   shifts,
   stores,
   weekStart,
-  adminSettings
+  adminSettings,
+  storeFilter // 🆕 Riceve il filtro negozio
 }) => {
-  const [selectedStore, setSelectedStore] = useState<string>('');
+  // 🔧 Usa storeFilter passato dall'esterno invece del state locale
+  const [selectedStore, setSelectedStore] = useState<string>(storeFilter || '');
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month'>('week');
   const [viewMode, setViewMode] = useState<'summary' | 'trends' | 'distribution'>('summary');
+
+  // 🔧 Sincronizza il state locale con il filtro esterno
+  React.useEffect(() => {
+    setSelectedStore(storeFilter || '');
+  }, [storeFilter]);
 
   // Calcola statistiche workload per periodo
   const workloadStats = useMemo(() => {
@@ -121,35 +136,64 @@ export const WorkloadDashboard: React.FC<WorkloadDashboardProps> = ({
       return matchesStore && isInPeriod;
     });
 
-    const activeEmployees = employees.filter(emp => emp.isActive);
+    // 🔧 Filtra dipendenti per negozio selezionato E attivi
+    const activeEmployees = employees.filter(emp => {
+      const isActive = emp.isActive;
+      const matchesStore = !selectedStore || emp.storeId === selectedStore;
+      return isActive && matchesStore;
+    });
     const employeeStats: EmployeeWorkloadStats[] = [];
 
     // Calcola stats per ogni dipendente
     activeEmployees.forEach(employee => {
       const employeeShifts = filteredShifts.filter(shift => shift.employeeId === employee.id);
       
+      // 🔧 USA actualHours se disponibile, altrimenti calcola con break (COERENTE CON ALTRI SISTEMI)
       const totalHours = employeeShifts.reduce((sum, shift) => {
-        const start = new Date(`2000-01-01T${shift.startTime}`);
-        const end = new Date(`2000-01-01T${shift.endTime}`);
-        const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-        return sum + hours;
+        if (shift.actualHours && shift.actualHours > 0) {
+          return sum + shift.actualHours;
+        } else {
+          // Fallback al calcolo manuale con break
+          const start = new Date(`2000-01-01T${shift.startTime}`);
+          const end = new Date(`2000-01-01T${shift.endTime}`);
+          const calculatedHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+          const hoursMinusBreak = calculatedHours - (shift.breakDuration || 0) / 60;
+          return sum + Math.max(0, hoursMinusBreak);
+        }
       }, 0);
 
       const dailyHours: { [date: string]: number } = {};
       employeeShifts.forEach(shift => {
         const dateStr = shift.date.toISOString().split('T')[0];
-        const start = new Date(`2000-01-01T${shift.startTime}`);
-        const end = new Date(`2000-01-01T${shift.endTime}`);
-        const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+        // 🔧 USA actualHours se disponibile, altrimenti calcola con break
+        let hours: number;
+        if (shift.actualHours && shift.actualHours > 0) {
+          hours = shift.actualHours;
+        } else {
+          const start = new Date(`2000-01-01T${shift.startTime}`);
+          const end = new Date(`2000-01-01T${shift.endTime}`);
+          const calculatedHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+          hours = Math.max(0, calculatedHours - (shift.breakDuration || 0) / 60);
+        }
         dailyHours[dateStr] = (dailyHours[dateStr] || 0) + hours;
       });
 
       const workingDays = Object.keys(dailyHours).length;
       const averageHoursPerDay = workingDays > 0 ? totalHours / workingDays : 0;
 
-      // Soglie configurabili dall'admin
-      const maxHoursThreshold = adminSettings?.dynamicStaffRequirements.maxHoursVariation || 40;
-      const equityThreshold = adminSettings?.dynamicStaffRequirements.equityThreshold || 20;
+      // 🔧 USA LIMITI INDIVIDUALI del dipendente (ALLINEATO CON ALERT SYSTEM)
+      const targetHoursPerWeek = adminSettings?.dynamicStaffRequirements?.targetHoursPerWeek || 32;
+      const employeeMaxHours = employee.contractHours || targetHoursPerWeek; // contractHours = Ore Massime Contratto
+      const employeeMinHours = employee.fixedHours || Math.max(employeeMaxHours * 0.5, 8); // fixedHours = Ore Minime Garantite
+      
+      // 🔧 Calcola percentuale di utilizzo del contratto individuale
+      const contractUtilization = employeeMaxHours > 0 ? (totalHours / employeeMaxHours) * 100 : 0;
+      const minUtilization = employeeMinHours > 0 ? (totalHours / employeeMinHours) * 100 : 0;
+      
+      // 🔧 Equity Score basato su utilizzo ottimale del contratto (80-95%)
+      const optimalUtilization = 87.5; // Target 87.5% del contratto (tra 80% e 95%)
+      const utilizationDeviation = Math.abs(contractUtilization - optimalUtilization);
+      const equityScore = Math.max(0, 100 - utilizationDeviation * 2); // Penalità per deviazione dall'ottimale
 
       employeeStats.push({
         employeeId: employee.id,
@@ -158,22 +202,36 @@ export const WorkloadDashboard: React.FC<WorkloadDashboardProps> = ({
         totalShifts: employeeShifts.length,
         dailyHours,
         averageHoursPerDay: Number(averageHoursPerDay.toFixed(1)),
-        isOverloaded: totalHours > maxHoursThreshold,
-        isUnderloaded: totalHours < 10, // Min threshold
-        equityScore: 100 - Math.abs(averageHoursPerDay - 25) * 2 // Target 25h/week
+        // 🔧 Usa limiti individuali invece di soglie fisse
+        isOverloaded: totalHours > employeeMaxHours,
+        isUnderloaded: totalHours < employeeMinHours,
+        equityScore: Number(equityScore.toFixed(1)),
+        // 🆕 Aggiungi informazioni sui limiti individuali
+        contractHours: employeeMaxHours,
+        minHours: employeeMinHours,
+        contractUtilization: Number(contractUtilization.toFixed(1))
       });
     });
 
-    // Calcola summary
+    // 🔧 Calcola summary basato su limiti individuali (COERENTE CON ALERT SYSTEM)
     const totalHours = employeeStats.reduce((sum, emp) => sum + emp.totalHours, 0);
     const averageHours = employeeStats.length > 0 ? totalHours / employeeStats.length : 0;
     const maxHours = Math.max(...employeeStats.map(emp => emp.totalHours), 0);
     const minHours = employeeStats.length > 0 ? Math.min(...employeeStats.map(emp => emp.totalHours)) : 0;
     
-    // Standard deviation
-    const variance = employeeStats.reduce((sum, emp) => 
-      sum + Math.pow(emp.totalHours - averageHours, 2), 0) / Math.max(employeeStats.length, 1);
-    const standardDeviation = Math.sqrt(variance);
+    // 🔧 Calcola equity score basato su utilizzo contratti individuali
+    const averageEquityScore = employeeStats.length > 0 
+      ? employeeStats.reduce((sum, emp) => sum + emp.equityScore, 0) / employeeStats.length 
+      : 100;
+    
+    // 🔧 Calcola deviazione basata su utilizzo contratti (non ore assolute)
+    const averageContractUtilization = employeeStats.length > 0
+      ? employeeStats.reduce((sum, emp) => sum + emp.contractUtilization, 0) / employeeStats.length
+      : 0;
+    
+    const utilizationVariance = employeeStats.reduce((sum, emp) => 
+      sum + Math.pow(emp.contractUtilization - averageContractUtilization, 2), 0) / Math.max(employeeStats.length, 1);
+    const utilizationStandardDeviation = Math.sqrt(utilizationVariance);
 
     const summary: WorkloadSummary = {
       totalEmployees: employeeStats.length,
@@ -181,10 +239,15 @@ export const WorkloadDashboard: React.FC<WorkloadDashboardProps> = ({
       averageHours: Number(averageHours.toFixed(1)),
       maxHours: Number(maxHours.toFixed(1)),
       minHours: Number(minHours.toFixed(1)),
-      standardDeviation: Number(standardDeviation.toFixed(1)),
-      equityScore: 100 - (standardDeviation / averageHours) * 100,
+      standardDeviation: Number(utilizationStandardDeviation.toFixed(1)), // 🔧 Deviazione % utilizzo contratti
+      equityScore: Number(averageEquityScore.toFixed(1)), // 🔧 Media equity score individuali
       overloadedCount: employeeStats.filter(emp => emp.isOverloaded).length,
-      underloadedCount: employeeStats.filter(emp => emp.isUnderloaded).length
+      underloadedCount: employeeStats.filter(emp => emp.isUnderloaded).length,
+      // 🆕 Aggiungi statistiche utilizzo contratti
+      averageContractUtilization: Number(averageContractUtilization.toFixed(1)),
+      optimallyUtilizedCount: employeeStats.filter(emp => 
+        emp.contractUtilization >= 80 && emp.contractUtilization <= 95
+      ).length
     };
 
     return { employeeStats, summary };
@@ -215,24 +278,53 @@ export const WorkloadDashboard: React.FC<WorkloadDashboardProps> = ({
         return matchesStore && shiftDate >= periodStart && shiftDate <= periodEnd;
       });
 
-      const activeEmployees = employees.filter(emp => emp.isActive);
+      // 🔧 Filtra dipendenti per negozio selezionato E attivi
+    const activeEmployees = employees.filter(emp => {
+      const isActive = emp.isActive;
+      const matchesStore = !selectedStore || emp.storeId === selectedStore;
+      return isActive && matchesStore;
+    });
       const employeeHours = activeEmployees.map(employee => {
         return periodShifts
           .filter(shift => shift.employeeId === employee.id)
           .reduce((sum, shift) => {
-            const start = new Date(`2000-01-01T${shift.startTime}`);
-            const end = new Date(`2000-01-01T${shift.endTime}`);
-            return sum + (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+            // 🔧 USA actualHours se disponibile, altrimenti calcola con break
+            if (shift.actualHours && shift.actualHours > 0) {
+              return sum + shift.actualHours;
+            } else {
+              const start = new Date(`2000-01-01T${shift.startTime}`);
+              const end = new Date(`2000-01-01T${shift.endTime}`);
+              const calculatedHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+              const hoursMinusBreak = calculatedHours - (shift.breakDuration || 0) / 60;
+              return sum + Math.max(0, hoursMinusBreak);
+            }
           }, 0);
       });
 
+      // 🔧 Calcola equity score basato su utilizzo contratti individuali (TREND COERENTE)
+      const employeeUtilizations = activeEmployees.map((employee, index) => {
+        const targetHoursPerWeek = adminSettings?.dynamicStaffRequirements?.targetHoursPerWeek || 32;
+        const employeeMaxHours = employee.contractHours || targetHoursPerWeek;
+        const totalHours = employeeHours[index];
+        return employeeMaxHours > 0 ? (totalHours / employeeMaxHours) * 100 : 0;
+      });
+      
+      const averageUtilization = employeeUtilizations.length > 0 
+        ? employeeUtilizations.reduce((sum, util) => sum + util, 0) / employeeUtilizations.length 
+        : 0;
+      
+      const utilizationVariance = employeeUtilizations.reduce((sum, util) => 
+        sum + Math.pow(util - averageUtilization, 2), 0) / Math.max(employeeUtilizations.length, 1);
+      const utilizationStandardDeviation = Math.sqrt(utilizationVariance);
+      
+      // Equity score basato su deviazione da utilizzo ottimale (87.5%)
+      const optimalUtilization = 87.5;
+      const deviationFromOptimal = Math.abs(averageUtilization - optimalUtilization);
+      const equityScore = Math.max(0, 100 - deviationFromOptimal * 1.5);
+
+      // 🔧 Calcola variabili mancanti per il trend
       const totalHours = employeeHours.reduce((sum, hours) => sum + hours, 0);
       const averageHours = employeeHours.length > 0 ? totalHours / employeeHours.length : 0;
-      
-      const variance = employeeHours.reduce((sum, hours) => 
-        sum + Math.pow(hours - averageHours, 2), 0) / Math.max(employeeHours.length, 1);
-      const standardDeviation = Math.sqrt(variance);
-      const equityScore = 100 - (standardDeviation / Math.max(averageHours, 1)) * 100;
 
       const periodLabel = selectedPeriod === 'week' 
         ? `Sett. ${periodStart.getDate()}/${periodStart.getMonth() + 1}`
@@ -243,7 +335,7 @@ export const WorkloadDashboard: React.FC<WorkloadDashboardProps> = ({
         equityScore: Math.max(0, Math.min(100, equityScore)),
         totalHours: Number(totalHours.toFixed(1)),
         averageHours: Number(averageHours.toFixed(1)),
-        standardDeviation: Number(standardDeviation.toFixed(1))
+        standardDeviation: Number(utilizationStandardDeviation.toFixed(1))
       });
     }
 
@@ -409,57 +501,57 @@ export const WorkloadDashboard: React.FC<WorkloadDashboardProps> = ({
       {/* Summary Cards - Always Visible */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Total Employees */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Dipendenti Attivi</p>
-              <p className="text-3xl font-bold text-gray-900">{workloadStats.summary.totalEmployees}</p>
+              <p className="text-xs font-medium text-gray-600">Dipendenti Attivi</p>
+              <p className="text-xl font-semibold text-gray-900">{workloadStats.summary.totalEmployees}</p>
             </div>
-            <Users className="h-8 w-8 text-blue-500" />
+            <Users className="h-6 w-6 text-blue-500" />
           </div>
         </div>
 
         {/* Total Hours */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Ore Totali</p>
-              <p className="text-3xl font-bold text-gray-900">{workloadStats.summary.totalHours}h</p>
-              <p className="text-sm text-gray-500">Media: {workloadStats.summary.averageHours}h</p>
+              <p className="text-xs font-medium text-gray-600">Ore Totali</p>
+              <p className="text-xl font-semibold text-gray-900">{workloadStats.summary.totalHours}h</p>
+              <p className="text-xs text-gray-500">Media: {workloadStats.summary.averageHours}h</p>
             </div>
-            <Clock className="h-8 w-8 text-green-500" />
+            <Clock className="h-6 w-6 text-green-500" />
           </div>
         </div>
 
         {/* Equity Score */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Score Equità</p>
-              <p className={`text-3xl font-bold ${getEquityColor(workloadStats.summary.equityScore).split(' ')[0]}`}>
+              <p className="text-xs font-medium text-gray-600">Score Equità</p>
+              <p className={`text-xl font-semibold ${getEquityColor(workloadStats.summary.equityScore).split(' ')[0]}`}>
                 {workloadStats.summary.equityScore.toFixed(0)}%
               </p>
-              <p className="text-sm text-gray-500">σ: {workloadStats.summary.standardDeviation}h</p>
+              <p className="text-xs text-gray-500">σ: {workloadStats.summary.standardDeviation}%</p>
             </div>
-            <Target className="h-8 w-8 text-purple-500" />
+            <Target className="h-6 w-6 text-purple-500" />
           </div>
         </div>
 
         {/* Alerts */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Allerte</p>
+              <p className="text-xs font-medium text-gray-600">Allerte</p>
               <div className="flex items-center space-x-2 mt-1">
                 {workloadStats.summary.overloadedCount > 0 && (
-                  <span className="text-red-600 font-bold">{workloadStats.summary.overloadedCount} sovraccarichi</span>
+                  <span className="text-red-600 font-semibold text-sm">{workloadStats.summary.overloadedCount} sovraccarichi</span>
                 )}
                 {workloadStats.summary.underloadedCount > 0 && (
-                  <span className="text-yellow-600 font-bold">{workloadStats.summary.underloadedCount} sottoutilizzati</span>
+                  <span className="text-yellow-600 font-semibold text-sm">{workloadStats.summary.underloadedCount} sottoutilizzati</span>
                 )}
                 {workloadStats.summary.overloadedCount === 0 && workloadStats.summary.underloadedCount === 0 && (
-                  <span className="text-green-600 font-bold flex items-center">
-                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                  <span className="text-green-600 font-semibold text-sm flex items-center">
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
                     Tutto OK
                   </span>
                 )}
@@ -481,7 +573,9 @@ export const WorkloadDashboard: React.FC<WorkloadDashboardProps> = ({
             <p className="text-sm text-gray-600">Analisi dettagliata del carico di lavoro per {selectedPeriod === 'week' ? 'settimana' : 'mese'}</p>
           </div>
           
-          <div className="overflow-x-auto">
+          {/* 🔧 Container con scorrimento verticale e orizzontale */}
+          <div className="max-h-96 overflow-y-auto">
+            <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -551,6 +645,7 @@ export const WorkloadDashboard: React.FC<WorkloadDashboardProps> = ({
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}
@@ -559,7 +654,7 @@ export const WorkloadDashboard: React.FC<WorkloadDashboardProps> = ({
       {viewMode === 'trends' && (
         <div className="space-y-6">
           {/* Equity Trend Chart */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Trend Score Equità</h3>
               <p className="text-sm text-gray-600">Evoluzione dell'equità della distribuzione nel tempo</p>
@@ -591,7 +686,7 @@ export const WorkloadDashboard: React.FC<WorkloadDashboardProps> = ({
           </div>
 
           {/* Hours Trend Chart */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Trend Ore Totali</h3>
               <p className="text-sm text-gray-600">Evoluzione delle ore totali e medie nel tempo</p>
@@ -635,7 +730,7 @@ export const WorkloadDashboard: React.FC<WorkloadDashboardProps> = ({
           </div>
 
           {/* Employee Comparison Chart */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Confronto Ore Dipendenti</h3>
               <p className="text-sm text-gray-600">Ore attuali vs. target per dipendente (top 10)</p>
@@ -656,7 +751,7 @@ export const WorkloadDashboard: React.FC<WorkloadDashboardProps> = ({
           </div>
 
           {/* Trend Summary Stats */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Statistiche Trend</h3>
               <p className="text-sm text-gray-600">Riepilogo dei trend degli ultimi 4 periodi</p>
@@ -697,7 +792,7 @@ export const WorkloadDashboard: React.FC<WorkloadDashboardProps> = ({
       {viewMode === 'distribution' && (
         <div className="space-y-6">
           {/* Hours Distribution Pie Chart */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Distribuzione Ore per Range</h3>
               <p className="text-sm text-gray-600">Percentuale delle ore totali per fascia oraria</p>
@@ -802,7 +897,7 @@ export const WorkloadDashboard: React.FC<WorkloadDashboardProps> = ({
           </div>
 
           {/* Workload Balance Chart */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Bilanciamento Workload</h3>
               <p className="text-sm text-gray-600">Dipendenti per categoria di carico di lavoro</p>
@@ -843,7 +938,7 @@ export const WorkloadDashboard: React.FC<WorkloadDashboardProps> = ({
           </div>
 
           {/* Distribution Insights */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Insights Distribuzione</h3>
               <p className="text-sm text-gray-600">Analisi automatica della distribuzione ore</p>
