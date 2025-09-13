@@ -235,6 +235,14 @@ export const WeekendRestReport: React.FC<WeekendRestReportProps> = ({
             shift.date.toDateString() === weekend.sunday.toDateString()
           );
           
+          const totalWeekendShifts = saturdayShifts.length + sundayShifts.length;
+          
+          // 🔧 INCLUDI SOLO WEEKEND CON TURNI EFFETTIVAMENTE PROGRAMMATI
+          if (totalWeekendShifts === 0) {
+            console.log(`⏭️ Saltando weekend settimanale ${weekend.saturday.toLocaleDateString('it-IT')} - ${weekend.sunday.toLocaleDateString('it-IT')}: nessun turno programmato`);
+            return; // Salta questo weekend vuoto
+          }
+          
           const employeesWorkingSaturday = new Set(saturdayShifts.map(s => s.employeeId));
           const employeesWorkingSunday = new Set(sundayShifts.map(s => s.employeeId));
           
@@ -272,7 +280,7 @@ export const WeekendRestReport: React.FC<WeekendRestReportProps> = ({
             employeesWithSaturdayOff,
             employeesWithSundayOff,
             employeesWithBothOff,
-            totalWeekendShifts: saturdayShifts.length + sundayShifts.length
+            totalWeekendShifts
           });
         });
         
@@ -308,6 +316,16 @@ export const WeekendRestReport: React.FC<WeekendRestReportProps> = ({
           shift.date.toDateString() === weekend.sunday.toDateString()
         );
         
+        const totalWeekendShifts = saturdayShifts.length + sundayShifts.length;
+        
+        // 🔧 INCLUDI SOLO WEEKEND CON TURNI EFFETTIVAMENTE PROGRAMMATI
+        if (totalWeekendShifts === 0) {
+          console.log(`⏭️ Saltando weekend ${weekend.saturday.toLocaleDateString('it-IT')} - ${weekend.sunday.toLocaleDateString('it-IT')}: nessun turno programmato`);
+          return; // Salta questo weekend vuoto
+        }
+        
+        console.log(`✅ Elaborando weekend ${weekend.saturday.toLocaleDateString('it-IT')} - ${weekend.sunday.toLocaleDateString('it-IT')}: ${totalWeekendShifts} turni`);
+        
         const employeesWorkingSaturday = new Set(saturdayShifts.map(s => s.employeeId));
         const employeesWorkingSunday = new Set(sundayShifts.map(s => s.employeeId));
         
@@ -341,7 +359,7 @@ export const WeekendRestReport: React.FC<WeekendRestReportProps> = ({
           employeesWithSaturdayOff,
           employeesWithSundayOff,
           employeesWithBothOff,
-          totalWeekendShifts: saturdayShifts.length + sundayShifts.length
+          totalWeekendShifts
         });
       });
       
@@ -383,8 +401,24 @@ export const WeekendRestReport: React.FC<WeekendRestReportProps> = ({
         let saturdaysOff = 0;
         let sundaysOff = 0;
         let bothDaysOff = 0;
+        let weekendsAnalyzed = 0; // 🔧 Conta solo weekend con turni
         
         for (const weekend of monthWeekends) {
+          // 🔧 VERIFICA SE IL WEEKEND HA TURNI PROGRAMMATI PER IL NEGOZIO
+          const storeShiftsWeekend = shifts.filter(shift => 
+            shift.storeId === store.id &&
+            (shift.date.toDateString() === weekend.saturday.toDateString() || 
+             shift.date.toDateString() === weekend.sunday.toDateString())
+          );
+          
+          // 🔧 SALTA WEEKEND SENZA TURNI PROGRAMMATI NEL NEGOZIO
+          if (storeShiftsWeekend.length === 0) {
+            console.log(`⏭️ Saltando analisi dipendente ${employee.firstName} per weekend ${weekend.saturday.toLocaleDateString('it-IT')}: nessun turno nel negozio`);
+            continue;
+          }
+          
+          weekendsAnalyzed++; // 🔧 Conta solo weekend con turni
+          
           const saturdayShift = shifts.find(shift => 
             shift.employeeId === employee.id && 
             shift.date.toDateString() === weekend.saturday.toDateString()
@@ -402,8 +436,8 @@ export const WeekendRestReport: React.FC<WeekendRestReportProps> = ({
           if (hasSaturdayOff && hasSundayOff) bothDaysOff++;
         }
         
-        const weekendsAnalyzed = monthWeekends.length;
-        const weekendWorkPercentage = ((weekendsAnalyzed * 2 - saturdaysOff - sundaysOff) / (weekendsAnalyzed * 2)) * 100;
+        const weekendWorkPercentage = weekendsAnalyzed > 0 ? 
+          ((weekendsAnalyzed * 2 - saturdaysOff - sundaysOff) / (weekendsAnalyzed * 2)) * 100 : 0;
         
         // 🔧 CALCOLA FAIRNESS SCORE MIGLIORATO (0-100, 100 = perfettamente equo)
         const idealRestDays = weekendsAnalyzed; // Idealmente 1 giorno di riposo per weekend
@@ -647,7 +681,7 @@ export const WeekendRestReport: React.FC<WeekendRestReportProps> = ({
     { value: 'employee', label: 'Dipendenti' }
   ];
 
-  // Calcola statistiche generali
+  // 🔧 Calcola statistiche generali DINAMICHE in base al filtro negozio
   const overallStats = useMemo(() => {
     // Inizializza esplicitamente le variabili a 0
     let calculatedTotalEmployees = 0;
@@ -655,14 +689,16 @@ export const WeekendRestReport: React.FC<WeekendRestReportProps> = ({
     let calculatedAvgSundayOff = 0;
     let calculatedAvgBothOff = 0;
     
-    // Filtra solo gli oggetti validi con tutte le proprietà richieste
+    // 🔧 FILTRA ANCHE PER NEGOZIO SELEZIONATO (solo stats cumulative)
     const validStats = Array.isArray(weekendStats) ? weekendStats.filter(stat => 
       stat && 
       typeof stat === 'object' && 
       typeof stat.totalEmployees === 'number' && 
       typeof stat.saturdayOffPercentage === 'number' && 
       typeof stat.sundayOffPercentage === 'number' && 
-      typeof stat.bothDaysOffPercentage === 'number'
+      typeof stat.bothDaysOffPercentage === 'number' &&
+      !stat.weekNumber && // Solo stats cumulative
+      (selectedStore === 'all' || stat.storeId === selectedStore) // 🔧 FILTRO NEGOZIO
     ) : [];
     
     // Controlla che validStats sia un array non vuoto
@@ -681,7 +717,7 @@ export const WeekendRestReport: React.FC<WeekendRestReportProps> = ({
       totalWeekends: monthWeekends.length,
       storesAnalyzed: validStats.length
     };
-  }, [weekendStats, monthWeekends]);
+  }, [weekendStats, monthWeekends, selectedStore]); // 🔧 AGGIUNGI selectedStore ALLE DIPENDENZE
 
   return (
     <div className="space-y-4">
