@@ -1,7 +1,7 @@
 export interface Employee {
   id: string;
-  firstName: string;
-  lastName: string;
+  first_name: string;
+  last_name: string;
   contractHours: number;
   fixedHours: number;
   isActive: boolean;
@@ -72,6 +72,7 @@ export interface Shift {
   isLocked: boolean; // Nuovo campo per la convalida
   lockedAt?: Date; // Quando è stato bloccato
   lockedBy?: string; // Chi l'ha bloccato
+  validationStatus?: ShiftValidationStatus; // Nuovo campo per workflow
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -207,4 +208,69 @@ export interface CalculatedStaffNeed {
     weightedMin: number;
     weightedMax: number;
   }[];
+}
+
+// 🔍 VALIDATION SYSTEM TYPES
+export interface ValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+  score: number; // 0-100
+}
+
+export interface ValidationRule {
+  name: string;
+  category: 'critical' | 'warning' | 'info';
+  weight: number; // Impact on score
+  validator: (shift: Shift, context: ValidationContext) => ValidationResult;
+}
+
+export interface ValidationContext {
+  employees: Employee[];
+  stores: Store[];
+  allShifts: Shift[];
+  selectedDate?: Date;
+  bulkOperation?: boolean;
+}
+
+// 🔄 WORKFLOW TYPES
+export type ShiftValidationStatus = 
+  | 'draft'              // Bozza, modificabile
+  | 'ready_review'       // Pronto per revisione
+  | 'under_review'       // In fase di revisione
+  | 'validated'          // Validato, non modificabile
+  | 'published'          // Pubblicato ai dipendenti
+  | 'locked_final';      // Bloccato definitivamente
+
+// 🗃️ AUDIT TRAIL TYPES
+export interface LockAuditEntry {
+  id: string;
+  shiftId: string;
+  employeeId: string;
+  employeeName: string;
+  storeId: string;
+  operation: 'lock' | 'unlock' | 'bulk_lock' | 'bulk_unlock' | 'validation_failed';
+  timestamp: Date;
+  user: string;
+  reason?: string;
+  previousState?: {
+    isLocked: boolean;
+    actualHours: number;
+  };
+  newState?: {
+    isLocked: boolean;
+    actualHours: number;
+  };
+  validationResult?: {
+    isValid: boolean;
+    score: number;
+    errors: string[];
+    warnings: string[];
+  };
+  metadata?: {
+    bulkOperationId?: string;
+    totalAffectedShifts?: number;
+    ipAddress?: string;
+    userAgent?: string;
+  };
 }
