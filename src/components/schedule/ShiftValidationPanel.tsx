@@ -8,7 +8,8 @@ import {
   ShiftWorkflowEngine,
   createWorkflowEngine,
   STATUS_CONFIG,
-  WORKFLOW_TRANSITIONS
+  WORKFLOW_TRANSITIONS,
+  getWorkflowStatistics
 } from '../../utils/workflowEngine';
 
 interface ShiftValidationPanelProps {
@@ -55,7 +56,7 @@ export const ShiftValidationPanel: React.FC<ShiftValidationPanelProps> = ({
 
   // Group shifts by workflow status
   const shiftsByStatus = workflowEngine.getShiftsByStatus(filteredShifts);
-  const workflowStats = workflowEngine.getWorkflowStatistics(filteredShifts);
+  const workflowStats = getWorkflowStatistics(filteredShifts);
 
   // Get available workflow transitions for bulk actions
   const availableTransitions = useMemo(() => {
