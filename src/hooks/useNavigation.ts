@@ -13,10 +13,11 @@ import {
   Banknote,
   Shield,
   PieChart,
-  Brain
+  Brain,
+  Activity
 } from 'lucide-react';
 
-export type View = 'schedule' | 'timeline' | 'validation' | 'employees' | 'stores' | 'weekend-report' | 'unavailability' | 'hour-bank' | 'users' | 'workload-dashboard'; // | 'analytics'; // DISABLED: AI Analytics non era nella roadmap originale
+export type View = 'schedule' | 'timeline' | 'validation' | 'employees' | 'stores' | 'weekend-report' | 'unavailability' | 'hour-bank' | 'users' | 'workload-dashboard' | 'testing'; // | 'analytics'; // DISABLED: AI Analytics non era nella roadmap originale
 
 interface UseNavigationProps {
   profile: UserProfile | null;
@@ -98,11 +99,18 @@ export const useNavigation = ({ profile, hasPermission }: UseNavigationProps) =>
       permission: 'manage_stores',
       minRole: 'manager'
     },
-    { 
-      id: 'users', 
-      name: 'Utenti', 
+    {
+      id: 'users',
+      name: 'Utenti',
       icon: Shield,
       permission: 'manage_users',
+      minRole: 'admin'
+    },
+    {
+      id: 'testing',
+      name: 'Testing & Performance',
+      icon: Activity,
+      permission: 'view_analytics',
       minRole: 'admin'
     }
   ], []);

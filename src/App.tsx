@@ -35,6 +35,7 @@ import { ValidationConfigPanel } from './components/admin/ValidationConfigPanel'
 import { WorkloadDashboard } from './components/workload/WorkloadDashboard';
 import { AlertPanel } from './components/alerts/AlertPanel';
 import { BalancingPanel } from './components/BalancingPanel';
+import { TestingPanel } from './components/testing/TestingPanel';
 // DISABLED: AI Analytics non era nella roadmap originale
 // import { AnalyticsDashboard } from './components/analytics/AnalyticsDashboard';
 import { useWorkloadAlerts } from './hooks/useWorkloadAlerts';
@@ -938,6 +939,20 @@ function AppContent() {
         {currentView === 'users' && (
           <ProtectedRoute requiredPermission="manage_users">
             <UserManagement stores={stores} />
+          </ProtectedRoute>
+        )}
+
+        {/* 🧪 FASE 5: Testing & Performance Panel */}
+        {currentView === 'testing' && (
+          <ProtectedRoute requiredPermission="view_analytics">
+            <div className="space-y-6">
+              <TestingPanel
+                shifts={shifts}
+                employees={employees}
+                stores={stores}
+                onUpdateShifts={updateShifts}
+              />
+            </div>
           </ProtectedRoute>
         )}
           </div>
