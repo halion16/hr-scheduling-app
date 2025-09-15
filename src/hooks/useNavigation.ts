@@ -116,21 +116,61 @@ export const useNavigation = ({ profile, hasPermission }: UseNavigationProps) =>
   ], []);
 
   const filteredNavigation = useMemo(() => {
-    if (!profile) return [];
+    if (!profile) {
+      console.log('🔍 Navigation Debug: No profile available');
+      return [];
+    }
 
-    return navigationItems.filter(item => {
+    console.log('🔍 Navigation Debug:', {
+      profileName: `${profile.first_name} ${profile.last_name}`,
+      profileRole: profile.role,
+      profilePermissions: profile.custom_permissions,
+      totalNavigationItems: navigationItems.length
+    });
+
+    const filtered = navigationItems.filter(item => {
       // Filter navigation items based on user permissions
-      if (item.permission && !hasPermission(item.permission)) return false;
-      
+      if (item.permission && !hasPermission(item.permission)) {
+        if (item.id === 'testing') {
+          console.log('❌ Testing item filtered out due to permission:', {
+            permission: item.permission,
+            hasPermission: hasPermission(item.permission),
+            profilePermissions: profile.custom_permissions
+          });
+        }
+        return false;
+      }
+
       if (item.minRole) {
         const roleHierarchy = { admin: 3, manager: 2, user: 1 };
         const userLevel = roleHierarchy[profile.role];
         const requiredLevel = roleHierarchy[item.minRole];
-        return userLevel >= requiredLevel;
+        const passesRoleCheck = userLevel >= requiredLevel;
+
+        if (item.id === 'testing') {
+          console.log('🧪 Testing item role check:', {
+            userRole: profile.role,
+            userLevel,
+            requiredRole: item.minRole,
+            requiredLevel,
+            passes: passesRoleCheck
+          });
+        }
+
+        return passesRoleCheck;
       }
-      
+
       return true;
     });
+
+    const testingItem = filtered.find(item => item.id === 'testing');
+    console.log('🔍 Navigation filtering result:', {
+      totalFiltered: filtered.length,
+      testingItemIncluded: !!testingItem,
+      filteredItemIds: filtered.map(item => item.id)
+    });
+
+    return filtered;
   }, [navigationItems, profile, hasPermission]);
 
   // Check if current view is still accessible after filtering (memoized)

@@ -766,12 +766,12 @@ export const useBalancingEngine = ({
     }
 
     // Calcola nuovo orario di fine
-    const targetCurrentHours = targetShift.hours;
-    const targetNewHours = isReduction ?
-      Math.max(4, targetCurrentHours - hoursChange) : // Minimo 4 ore
-      Math.min(12, targetCurrentHours + hoursChange); // Massimo 12 ore
+    const adjustedCurrentHours = targetShift.hours;
+    const adjustedNewHours = isReduction ?
+      Math.max(4, adjustedCurrentHours - hoursChange) : // Minimo 4 ore
+      Math.min(12, adjustedCurrentHours + hoursChange); // Massimo 12 ore
 
-    const actualAdjustment = Math.abs(targetNewHours - targetCurrentHours);
+    const actualAdjustment = Math.abs(adjustedNewHours - adjustedCurrentHours);
 
     if (actualAdjustment < 0.5) {
       return {
@@ -785,7 +785,7 @@ export const useBalancingEngine = ({
     // Calcola nuovo orario di fine basato sulla durata desiderata
     const startTime = new Date(`2000-01-01T${targetShift.shift.startTime}`);
     const breakMinutes = targetShift.shift.breakDuration || 0;
-    const totalMinutes = (targetNewHours * 60) + breakMinutes;
+    const totalMinutes = (adjustedNewHours * 60) + breakMinutes;
     const endTime = new Date(startTime.getTime() + totalMinutes * 60 * 1000);
 
     const newEndTime = endTime.toTimeString().substring(0, 5);
@@ -795,7 +795,7 @@ export const useBalancingEngine = ({
       id: targetShift.shift.id,
       data: {
         endTime: newEndTime,
-        actualHours: targetNewHours,
+        actualHours: adjustedNewHours,
         updatedAt: new Date()
       }
     }];

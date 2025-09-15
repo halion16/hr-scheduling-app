@@ -79,8 +79,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       name: 'Reports & Analytics',
       icon: Settings,
       defaultExpanded: true,
-      items: navigation.filter(item => 
-        ['workload-dashboard', 'weekend-report'].includes(item.id)
+      items: navigation.filter(item =>
+        ['workload-dashboard', 'weekend-report', 'testing'].includes(item.id)
       )
     },
     {

@@ -180,15 +180,40 @@ export const useAuth = (): AuthContextType => {
 
   // Check permissions based on user role (memoized to prevent re-renders)
   const hasPermission = useCallback((permission: Permission): boolean => {
-    if (!state.profile) return false;
-    
+    if (!state.profile) {
+      console.log('🔍 Permission Debug: No profile available for permission:', permission);
+      return false;
+    }
+
     // Check custom permissions first, fallback to role-based permissions
     if (state.profile.custom_permissions && state.profile.custom_permissions.length > 0) {
-      return state.profile.custom_permissions.includes(permission);
+      const hasCustomPermission = state.profile.custom_permissions.includes(permission);
+
+      if (permission === 'view_analytics') {
+        console.log('🔍 Permission Debug (view_analytics):', {
+          userRole: state.profile.role,
+          customPermissions: state.profile.custom_permissions,
+          hasCustomPermission,
+          permissionSource: 'custom_permissions'
+        });
+      }
+
+      return hasCustomPermission;
     }
-    
+
     // Fallback to role-based permissions for backward compatibility
-    return ROLE_PERMISSIONS[state.profile.role].includes(permission);
+    const hasRolePermission = ROLE_PERMISSIONS[state.profile.role].includes(permission);
+
+    if (permission === 'view_analytics') {
+      console.log('🔍 Permission Debug (view_analytics):', {
+        userRole: state.profile.role,
+        rolePermissions: ROLE_PERMISSIONS[state.profile.role],
+        hasRolePermission,
+        permissionSource: 'role_permissions'
+      });
+    }
+
+    return hasRolePermission;
   }, [state.profile]);
 
   // Check if user can access specific store (memoized to prevent re-renders)
