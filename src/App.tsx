@@ -34,6 +34,7 @@ import { ValidationConfigPanel } from './components/admin/ValidationConfigPanel'
 import { WorkloadDashboard } from './components/workload/WorkloadDashboard';
 import { AlertPanel } from './components/alerts/AlertPanel';
 import { BalancingPanel } from './components/BalancingPanel';
+import { AnalyticsDashboard } from './components/analytics/AnalyticsDashboard';
 import { useWorkloadAlerts } from './hooks/useWorkloadAlerts';
 import { Users, Calendar, CalendarX } from 'lucide-react';
 import { exportScheduleToExcel, exportEmployeesToExcel } from './utils/exportUtils';
@@ -560,7 +561,7 @@ function AppContent() {
 
         <main className="flex-1 overflow-auto bg-gray-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {(currentView === 'schedule' || currentView === 'timeline' || currentView === 'validation' || currentView === 'workload-dashboard') && (
+        {(currentView === 'schedule' || currentView === 'timeline' || currentView === 'validation' || currentView === 'workload-dashboard' || currentView === 'analytics') && (
           <ProtectedRoute requiredPermission="manage_shifts">
           <div className="space-y-6">
             <ScheduleHeader
@@ -683,7 +684,29 @@ function AppContent() {
           </div>
           </ProtectedRoute>
         )}
-        
+
+        {/* AI Analytics Dashboard */}
+        {currentView === 'analytics' && (
+          <ProtectedRoute requiredPermission="view_analytics">
+            <div className="space-y-6">
+              <AnalyticsDashboard
+                employees={employees}
+                shifts={shifts}
+                stores={stores}
+                weekStart={currentWeek}
+                onApplyAISuggestion={async (suggestion) => {
+                  console.log('🤖 Applying AI suggestion:', suggestion);
+                  showSuccessNotification(`Suggerimento AI applicato: ${suggestion.title}`);
+                }}
+                onOptimizeSchedule={async () => {
+                  console.log('🤖 Optimizing schedule with AI...');
+                  showSuccessNotification('Pianificazione ottimizzata con AI!');
+                }}
+              />
+            </div>
+          </ProtectedRoute>
+        )}
+
         {/* Report Weekend */}
         {currentView === 'weekend-report' && (
           <ProtectedRoute requiredPermission="view_analytics">

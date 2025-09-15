@@ -1,21 +1,22 @@
 import { useState, useMemo, useCallback } from 'react';
 import { NavigationItem } from '../components/navigation/NavigationBar';
 import { UserProfile } from './useAuth';
-import { 
-  Users, 
-  Store as StoreIcon, 
-  Calendar, 
-  Settings, 
-  BarChart3, 
-  Grid, 
-  Coffee, 
-  CalendarX, 
+import {
+  Users,
+  Store as StoreIcon,
+  Calendar,
+  Settings,
+  BarChart3,
+  Grid,
+  Coffee,
+  CalendarX,
   Banknote,
   Shield,
-  PieChart
+  PieChart,
+  Brain
 } from 'lucide-react';
 
-export type View = 'schedule' | 'timeline' | 'validation' | 'employees' | 'stores' | 'weekend-report' | 'unavailability' | 'hour-bank' | 'users' | 'workload-dashboard';
+export type View = 'schedule' | 'timeline' | 'validation' | 'employees' | 'stores' | 'weekend-report' | 'unavailability' | 'hour-bank' | 'users' | 'workload-dashboard' | 'analytics';
 
 interface UseNavigationProps {
   profile: UserProfile | null;
@@ -40,10 +41,17 @@ export const useNavigation = ({ profile, hasPermission }: UseNavigationProps) =>
       permission: 'view_analytics',
       minRole: 'user'
     },
-    { 
-      id: 'workload-dashboard', 
-      name: 'Workload', 
+    {
+      id: 'workload-dashboard',
+      name: 'Workload',
       icon: PieChart,
+      permission: 'view_analytics',
+      minRole: 'manager'
+    },
+    {
+      id: 'analytics',
+      name: 'AI Analytics',
+      icon: Brain,
       permission: 'view_analytics',
       minRole: 'manager'
     },
