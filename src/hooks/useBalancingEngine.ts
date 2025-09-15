@@ -137,6 +137,101 @@ export const useBalancingEngine = ({
       }
     });
 
+    // 🆕 5. ADVANCED VALIDATIONS - Validate shift spacing and rest periods
+    employeeShifts.forEach((empShifts, employeeId) => {
+      const employee = findEmployeeById(employeeId);
+      if (!employee) return;
+
+      // Sort shifts by date and time
+      const sortedShifts = empShifts.sort((a, b) => {
+        const dateA = new Date(`${a.date.toDateString()} ${a.startTime}`);
+        const dateB = new Date(`${b.date.toDateString()} ${b.startTime}`);
+        return dateA.getTime() - dateB.getTime();
+      });
+
+      // Check for insufficient rest between shifts (minimum 12 hours)
+      for (let i = 0; i < sortedShifts.length - 1; i++) {
+        const current = sortedShifts[i];
+        const next = sortedShifts[i + 1];
+
+        const currentEnd = new Date(`${current.date.toDateString()} ${current.endTime}`);
+        const nextStart = new Date(`${next.date.toDateString()} ${next.startTime}`);
+
+        const restHours = (nextStart.getTime() - currentEnd.getTime()) / (1000 * 60 * 60);
+
+        if (restHours < 12) {
+          conflicts.push({
+            type: 'availability',
+            message: `${employee.firstName} ${employee.lastName} ha solo ${restHours.toFixed(1)}h di riposo tra turni (minimo 12h)`,
+            employeeId: employeeId,
+            shiftId: next.id
+          });
+        }
+      }
+
+      // Check for excessive consecutive working days
+      const workingDays = new Set(empShifts.map(shift => shift.date.toDateString()));
+      if (workingDays.size > 6) {
+        warnings.push(`${employee.firstName} ${employee.lastName} lavora ${workingDays.size} giorni consecutivi (massimo raccomandato: 6)`);
+      }
+
+      // Check for shifts exceeding 10 hours (legal limit)
+      empShifts.forEach(shift => {
+        const shiftHours = shift.actualHours || calculateShiftHours(shift.startTime, shift.endTime, shift.breakDuration);
+        if (shiftHours > 10) {
+          conflicts.push({
+            type: 'contract',
+            message: `Turno di ${employee.firstName} ${employee.lastName} supera il limite legale (${shiftHours.toFixed(1)}h > 10h)`,
+            employeeId: employeeId,
+            shiftId: shift.id
+          });
+        }
+      });
+    });
+
+    // 🆕 6. Store capacity validation
+    if (suggestion.storeId) {
+      const store = findStoreById(suggestion.storeId);
+      if (store) {
+        // Count total employees that would be in this store after the change
+        const storeEmployeeCount = affectedShifts.filter(shift =>
+          shift.storeId === suggestion.storeId
+        ).length;
+
+        // Add existing employees in the store not affected by this change
+        const existingStoreEmployees = shifts.filter(shift =>
+          shift.storeId === suggestion.storeId &&
+          !affectedShifts.some(affected => affected.id === shift.id)
+        ).length;
+
+        const totalStoreEmployees = storeEmployeeCount + existingStoreEmployees;
+
+        // Check if store has capacity (assuming max 10 employees per store)
+        if (totalStoreEmployees > 10) {
+          warnings.push(`Il negozio ${store.name} potrebbe essere sovra-popolato (${totalStoreEmployees} dipendenti)`);
+        }
+      }
+    }
+
+    // 🆕 7. Skill and competency validation
+    affectedShifts.forEach(shift => {
+      const employee = findEmployeeById(shift.employeeId);
+      const store = findStoreById(shift.storeId);
+
+      if (employee && store) {
+        // Check if employee has required skills for the store/shift
+        // This would be enhanced with actual skill data from employee/store models
+        if (employee.role === 'junior' && shift.actualHours && shift.actualHours > 8) {
+          warnings.push(`${employee.firstName} ${employee.lastName} (junior) assegnato a turno lungo (${shift.actualHours}h) - potrebbe necessitare supervisione`);
+        }
+
+        // Check for cross-store competency
+        if (suggestion.type === 'redistribute' && suggestion.storeId !== employee.storeId) {
+          warnings.push(`${employee.firstName} ${employee.lastName} viene trasferito in un negozio diverso - verificare competenze specifiche`);
+        }
+      }
+    });
+
     return {
       isValid: errors.length === 0,
       warnings,
@@ -359,6 +454,231 @@ export const useBalancingEngine = ({
     };
   }, [shifts, findShiftById, calculateShiftHours, validateBalancingAction, onUpdateShifts]);
 
+  // 🆕 ADD SHIFT ENGINE
+  const applyAddShift = useCallback(async (suggestion: BalancingSuggestion): Promise<BalancingResult> => {
+    console.log('🆕 Applying add shift:', suggestion);
+
+    if (!suggestion.sourceEmployeeId || !onAddShift) {
+      return {
+        success: false,
+        modifiedShifts: [],
+        errors: ['Informazioni insufficienti per aggiungere turno'],
+        summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
+      };
+    }
+
+    const employee = findEmployeeById(suggestion.sourceEmployeeId);
+    if (!employee) {
+      return {
+        success: false,
+        modifiedShifts: [],
+        errors: ['Dipendente non trovato'],
+        summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
+      };
+    }
+
+    // Crea un nuovo turno di default (8 ore)
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const newShiftData = {
+      employeeId: suggestion.sourceEmployeeId,
+      storeId: suggestion.storeId || employee.storeId,
+      date: tomorrow,
+      startTime: '09:00',
+      endTime: '17:00',
+      breakDuration: 60,
+      actualHours: 8,
+      isLocked: false
+    };
+
+    try {
+      const newShiftId = onAddShift(newShiftData);
+      if (!newShiftId) {
+        return {
+          success: false,
+          modifiedShifts: [],
+          errors: ['Errore nella creazione del turno'],
+          summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
+        };
+      }
+
+      return {
+        success: true,
+        modifiedShifts: [],
+        errors: [],
+        summary: {
+          shiftsModified: 1,
+          employeesAffected: [suggestion.sourceEmployeeId],
+          hoursRedistributed: 8
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        modifiedShifts: [],
+        errors: [`Errore durante la creazione: ${error instanceof Error ? error.message : 'Unknown error'}`],
+        summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
+      };
+    }
+  }, [findEmployeeById, onAddShift]);
+
+  // 🗑️ REMOVE SHIFT ENGINE
+  const applyRemoveShift = useCallback(async (suggestion: BalancingSuggestion): Promise<BalancingResult> => {
+    console.log('🗑️ Applying remove shift:', suggestion);
+
+    if (!suggestion.sourceEmployeeId || !onDeleteShift) {
+      return {
+        success: false,
+        modifiedShifts: [],
+        errors: ['Informazioni insufficienti per rimuovere turno'],
+        summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
+      };
+    }
+
+    // Trova i turni del dipendente che possono essere rimossi
+    const employeeShifts = shifts.filter(shift =>
+      shift.employeeId === suggestion.sourceEmployeeId &&
+      !shift.isLocked
+    );
+
+    if (employeeShifts.length === 0) {
+      return {
+        success: false,
+        modifiedShifts: [],
+        errors: ['Nessun turno rimuovibile trovato'],
+        summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
+      };
+    }
+
+    // Rimuovi il turno con meno ore (meno impattante)
+    const shiftToRemove = employeeShifts
+      .map(shift => ({
+        shift,
+        hours: shift.actualHours || calculateShiftHours(shift.startTime, shift.endTime, shift.breakDuration)
+      }))
+      .sort((a, b) => a.hours - b.hours)[0];
+
+    try {
+      onDeleteShift(shiftToRemove.shift.id);
+
+      return {
+        success: true,
+        modifiedShifts: [shiftToRemove.shift],
+        errors: [],
+        summary: {
+          shiftsModified: 1,
+          employeesAffected: [suggestion.sourceEmployeeId],
+          hoursRedistributed: shiftToRemove.hours
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        modifiedShifts: [],
+        errors: [`Errore durante la rimozione: ${error instanceof Error ? error.message : 'Unknown error'}`],
+        summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
+      };
+    }
+  }, [shifts, findEmployeeById, calculateShiftHours, onDeleteShift]);
+
+  // ⏰ ADJUST HOURS ENGINE
+  const applyAdjustHours = useCallback(async (suggestion: BalancingSuggestion): Promise<BalancingResult> => {
+    console.log('⏰ Applying adjust hours:', suggestion);
+
+    if (!suggestion.sourceEmployeeId) {
+      return {
+        success: false,
+        modifiedShifts: [],
+        errors: ['ID dipendente mancante'],
+        summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
+      };
+    }
+
+    // Trova turni modificabili del dipendente
+    const employeeShifts = shifts.filter(shift =>
+      shift.employeeId === suggestion.sourceEmployeeId &&
+      !shift.isLocked
+    );
+
+    if (employeeShifts.length === 0) {
+      return {
+        success: false,
+        modifiedShifts: [],
+        errors: ['Nessun turno modificabile trovato'],
+        summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
+      };
+    }
+
+    const hoursChange = suggestion.proposedChanges.impact.hoursChange;
+    const isReduction = suggestion.proposedChanges.action.includes('Riduci');
+
+    // Applica aggiustamento al turno più lungo (più flessibile)
+    const targetShift = employeeShifts
+      .map(shift => ({
+        shift,
+        hours: shift.actualHours || calculateShiftHours(shift.startTime, shift.endTime, shift.breakDuration)
+      }))
+      .sort((a, b) => b.hours - a.hours)[0]; // Turno più lungo
+
+    if (!targetShift) {
+      return {
+        success: false,
+        modifiedShifts: [],
+        errors: ['Nessun turno target trovato'],
+        summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
+      };
+    }
+
+    // Calcola nuovo orario di fine
+    const currentHours = targetShift.hours;
+    const newHours = isReduction ?
+      Math.max(4, currentHours - hoursChange) : // Minimo 4 ore
+      Math.min(12, currentHours + hoursChange); // Massimo 12 ore
+
+    const actualAdjustment = Math.abs(newHours - currentHours);
+
+    if (actualAdjustment < 0.5) {
+      return {
+        success: false,
+        modifiedShifts: [],
+        errors: ['Aggiustamento troppo piccolo per essere applicato'],
+        summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
+      };
+    }
+
+    // Calcola nuovo orario di fine basato sulla durata desiderata
+    const startTime = new Date(`2000-01-01T${targetShift.shift.startTime}`);
+    const breakMinutes = targetShift.shift.breakDuration || 0;
+    const totalMinutes = (newHours * 60) + breakMinutes;
+    const endTime = new Date(startTime.getTime() + totalMinutes * 60 * 1000);
+
+    const newEndTime = endTime.toTimeString().substring(0, 5);
+
+    // Applica la modifica
+    const updates = [{
+      id: targetShift.shift.id,
+      data: {
+        endTime: newEndTime,
+        actualHours: newHours,
+        updatedAt: new Date()
+      }
+    }];
+
+    onUpdateShifts(updates);
+
+    return {
+      success: true,
+      modifiedShifts: [targetShift.shift],
+      errors: [],
+      summary: {
+        shiftsModified: 1,
+        employeesAffected: [suggestion.sourceEmployeeId],
+        hoursRedistributed: actualAdjustment
+      }
+    };
+  }, [shifts, findEmployeeById, calculateShiftHours, onUpdateShifts]);
+
   // 🎯 MAIN APPLICATION FUNCTION
   const applySuggestion = useCallback(async (suggestion: BalancingSuggestion): Promise<BalancingResult> => {
     setIsProcessing(true);
@@ -375,14 +695,16 @@ export const useBalancingEngine = ({
           result = await applySwapShifts(suggestion);
           break;
 
+        case 'add_shift':
+          result = await applyAddShift(suggestion);
+          break;
+
+        case 'remove_shift':
+          result = await applyRemoveShift(suggestion);
+          break;
+
         case 'adjust_hours':
-          // TODO: Implement in Phase 2
-          result = {
-            success: false,
-            modifiedShifts: [],
-            errors: ['Aggiustamento orari non ancora implementato'],
-            summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
-          };
+          result = await applyAdjustHours(suggestion);
           break;
 
         default:

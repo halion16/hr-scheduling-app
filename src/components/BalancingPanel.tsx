@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Scale, TrendingUp, ArrowRightLeft, Clock, Target, CheckCircle, XCircle, AlertTriangle, BarChart3, Users, Store } from 'lucide-react';
+import { Scale, TrendingUp, ArrowRightLeft, Clock, Target, CheckCircle, XCircle, AlertTriangle, BarChart3, Users, Store, Plus, Minus, Settings } from 'lucide-react';
 import { useWorkloadBalancer, BalancingSuggestion, BalancingMetrics } from '../hooks/useWorkloadBalancer';
 import { Employee, Store as StoreType, Shift } from '../types';
 import { ValidationAdminSettings } from '../types/validation';
@@ -109,11 +109,11 @@ export const BalancingPanel: React.FC<BalancingPanelProps> = ({
 
   const getTypeIcon = (type: BalancingSuggestion['type']) => {
     switch (type) {
-      case 'redistribute': return <ArrowRightLeft className="w-4 h-4" />;
-      case 'swap_shifts': return <ArrowRightLeft className="w-4 h-4" />;
-      case 'add_shift': return <CheckCircle className="w-4 h-4" />;
-      case 'remove_shift': return <XCircle className="w-4 h-4" />;
-      case 'adjust_hours': return <Clock className="w-4 h-4" />;
+      case 'redistribute': return <ArrowRightLeft className="w-4 h-4 text-blue-500" />;
+      case 'swap_shifts': return <ArrowRightLeft className="w-4 h-4 text-green-500" />;
+      case 'add_shift': return <Plus className="w-4 h-4 text-emerald-500" />;
+      case 'remove_shift': return <Minus className="w-4 h-4 text-red-500" />;
+      case 'adjust_hours': return <Settings className="w-4 h-4 text-orange-500" />;
     }
   };
 
@@ -303,6 +303,23 @@ export const BalancingPanel: React.FC<BalancingPanelProps> = ({
                     {suggestion.autoApplicable && (
                       <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
                         Auto
+                      </span>
+                    )}
+                    {/* 🆕 Store transfer indicator */}
+                    {suggestion.storeId && suggestion.type === 'redistribute' && (
+                      <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">
+                        Inter-Negozio
+                      </span>
+                    )}
+                    {/* 🆕 Special operation indicators */}
+                    {suggestion.type === 'add_shift' && (
+                      <span className="px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full">
+                        Nuovo Turno
+                      </span>
+                    )}
+                    {suggestion.type === 'remove_shift' && (
+                      <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-700 rounded-full">
+                        Rimozione
                       </span>
                     )}
                   </div>

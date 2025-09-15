@@ -487,6 +487,126 @@ function generateBalancingSuggestions(
     }
   });
 
+  // 🆕 5. SUGGERIMENTI PER OTTIMIZZAZIONE TRA NEGOZI DIVERSI
+  // Analizza sbilanciamenti tra negozi e suggerisce trasferimenti di dipendenti/turni
+  const overstaffedStores = metrics.storeBalance.filter(store => store.staffingLevel === 'overstaffed');
+  const understaffedStores = metrics.storeBalance.filter(store => store.staffingLevel === 'understaffed');
+
+  overstaffedStores.forEach(overstaffedStore => {
+    understaffedStores.forEach(understaffedStore => {
+      // Trova dipendenti nel negozio sovradotato che potrebbero essere trasferiti
+      const availableEmployees = employeeStats.filter(emp =>
+        emp.employee.storeId === overstaffedStore.storeId &&
+        emp.totalHours > 0 &&
+        emp.deviationPercent > 0 // Dipendenti con troppe ore
+      );
+
+      if (availableEmployees.length > 0) {
+        const bestCandidate = availableEmployees.sort((a, b) => b.deviationPercent - a.deviationPercent)[0];
+        const hoursToTransfer = Math.min(
+          Math.abs(overstaffedStore.deviation) / 2,
+          Math.abs(understaffedStore.deviation) / 2,
+          bestCandidate.totalHours * 0.3 // Max 30% delle ore del dipendente
+        );
+
+        if (hoursToTransfer >= 4) { // Minimo 4 ore per essere sensato
+          suggestions.push({
+            id: `inter-store-transfer-${suggestionId++}`,
+            type: 'redistribute',
+            priority: Math.abs(overstaffedStore.deviation) > 15 ? 'high' : 'medium',
+            title: 'Trasferimento Tra Negozi',
+            description: `Trasferisci ${hoursToTransfer.toFixed(1)}h di ${bestCandidate.employee.firstName} da ${overstaffedStore.storeName} a ${understaffedStore.storeName}`,
+            sourceEmployeeId: bestCandidate.employee.id,
+            sourceEmployeeName: `${bestCandidate.employee.firstName} ${bestCandidate.employee.lastName}`,
+            storeId: understaffedStore.storeId,
+            storeName: understaffedStore.storeName,
+            proposedChanges: {
+              action: 'Trasferimento inter-negozio',
+              from: `${overstaffedStore.storeName} (${overstaffedStore.currentHours}h)`,
+              to: `${understaffedStore.storeName} (${understaffedStore.currentHours}h)`,
+              impact: {
+                hoursChange: hoursToTransfer,
+                equityImprovement: 12.5,
+                workloadBalance: 15.3
+              }
+            },
+            autoApplicable: false, // Richiede approvazione manuale per trasferimenti tra negozi
+            estimatedDuration: 25
+          });
+        }
+      }
+    });
+  });
+
+  // 🆕 6. SUGGERIMENTI PER CREAZIONE/RIMOZIONE TURNI
+  metrics.storeBalance.forEach(store => {
+    if (store.staffingLevel === 'understaffed' && Math.abs(store.deviation) > 8) {
+      // Suggerisci creazione di nuovi turni
+      const storeEmployees = employeeStats.filter(emp => emp.employee.storeId === store.storeId);
+      const bestEmployee = storeEmployees
+        .filter(emp => emp.deviationPercent < 0) // Dipendenti sotto-utilizzati
+        .sort((a, b) => a.deviationPercent - b.deviationPercent)[0];
+
+      if (bestEmployee) {
+        suggestions.push({
+          id: `add-shift-${suggestionId++}`,
+          type: 'add_shift',
+          priority: Math.abs(store.deviation) > 15 ? 'high' : 'medium',
+          title: 'Aggiungi Turno Necessario',
+          description: `Crea un nuovo turno per ${bestEmployee.employee.firstName} in ${store.storeName} per coprire la carenza di personale`,
+          sourceEmployeeId: bestEmployee.employee.id,
+          sourceEmployeeName: `${bestEmployee.employee.firstName} ${bestEmployee.employee.lastName}`,
+          storeId: store.storeId,
+          storeName: store.storeName,
+          proposedChanges: {
+            action: 'Crea nuovo turno',
+            from: `${store.currentHours}h totali`,
+            to: `${(store.currentHours + Math.min(8, Math.abs(store.deviation))).toFixed(1)}h totali`,
+            impact: {
+              hoursChange: Math.min(8, Math.abs(store.deviation)),
+              equityImprovement: 8.7,
+              workloadBalance: 11.2
+            }
+          },
+          autoApplicable: false, // Richiede approvazione per nuovi turni
+          estimatedDuration: 15
+        });
+      }
+    } else if (store.staffingLevel === 'overstaffed' && store.deviation > 10) {
+      // Suggerisci rimozione di turni eccessivi
+      const storeEmployees = employeeStats.filter(emp => emp.employee.storeId === store.storeId);
+      const candidateEmployee = storeEmployees
+        .filter(emp => emp.deviationPercent > 0 && emp.totalHours > 8) // Dipendenti sovra-utilizzati
+        .sort((a, b) => b.deviationPercent - a.deviationPercent)[0];
+
+      if (candidateEmployee) {
+        suggestions.push({
+          id: `remove-shift-${suggestionId++}`,
+          type: 'remove_shift',
+          priority: store.deviation > 20 ? 'high' : 'medium',
+          title: 'Rimuovi Turno Eccessivo',
+          description: `Rimuovi un turno di ${candidateEmployee.employee.firstName} in ${store.storeName} per ridurre il sovra-staffing`,
+          sourceEmployeeId: candidateEmployee.employee.id,
+          sourceEmployeeName: `${candidateEmployee.employee.firstName} ${candidateEmployee.employee.lastName}`,
+          storeId: store.storeId,
+          storeName: store.storeName,
+          proposedChanges: {
+            action: 'Rimuovi turno eccessivo',
+            from: `${store.currentHours}h totali`,
+            to: `${(store.currentHours - Math.min(8, store.deviation)).toFixed(1)}h totali`,
+            impact: {
+              hoursChange: Math.min(8, store.deviation),
+              equityImprovement: 7.1,
+              workloadBalance: 9.8
+            }
+          },
+          autoApplicable: false, // Richiede approvazione per rimozione turni
+          estimatedDuration: 12
+        });
+      }
+    }
+  });
+
   return suggestions;
 }
 
