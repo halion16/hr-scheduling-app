@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Shift, Employee, ShiftConflict, CopiedShift, EmployeeUnavailability, Store } from '../../types';
+import { Shift, Employee, ShiftConflict, CopiedShift, EmployeeUnavailability, Store, ShiftValidationStatus } from '../../types';
 import { Button } from '../common/Button';
 import { ContextMenu } from './ContextMenu';
 import { TemplateSelector } from './TemplateSelector';
 import { useStaffPlanning } from '../../hooks/useStaffPlanning';
 import { getDayOfWeek, getStartOfWeek } from '../../utils/timeUtils';
+import { STATUS_CONFIG } from '../../utils/workflowEngine';
 import { AlertTriangle, Copy, Clipboard, Zap, Lock, Plus, Edit, Check, X, Calculator, AlertCircle, Clock, UserX } from 'lucide-react';
 
 interface ShiftCellProps {
@@ -43,7 +44,29 @@ export const ShiftCell: React.FC<ShiftCellProps> = ({
   hasClipboard = false
 }) => {
   const { calculateStaffNeeds } = useStaffPlanning();
-  
+
+  // Get workflow validation status
+  const validationStatus = (shift as any)?.validationStatus || 'draft';
+  const statusConfig = STATUS_CONFIG[validationStatus as ShiftValidationStatus];
+
+  // Helper functions for workflow status styling
+  const getValidationBorderStyle = () => {
+    if (!shift) return '';
+
+    switch (validationStatus) {
+      case 'draft': return 'border-l-4 border-l-gray-400';
+      case 'validated': return 'border-l-4 border-l-green-500';
+      case 'published': return 'border-l-4 border-l-purple-500';
+      case 'locked_final': return 'border-l-4 border-l-red-500';
+      default: return 'border-l-4 border-l-gray-300';
+    }
+  };
+
+  const getValidationIcon = () => {
+    if (!shift || validationStatus === 'draft') return null;
+    return statusConfig?.icon || '📝';
+  };
+
   const [isEditing, setIsEditing] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
@@ -899,7 +922,8 @@ ${conflicts.length > 0 ? `⚠️ ${conflicts.length} conflitti rilevati` : '✅ 
         <div
           ref={cellRef}
           className={`
-            relative min-h-[60px] p-2 rounded-lg border-2 transition-all duration-200 cursor-pointer print:min-h-[40px] print:p-1 
+            relative min-h-[60px] p-2 rounded-lg border-2 transition-all duration-200 cursor-pointer print:min-h-[40px] print:p-1
+            ${getValidationBorderStyle()}
             ${isEmployeeUnavailable ? 'bg-red-100 border-red-400 ring-1 ring-red-300' : ''}
             ${hasErrors ? 'bg-red-50 border-red-300' : ''}
             ${hasWarnings && !hasErrors ? 'bg-yellow-50 border-yellow-300' : ''}
@@ -929,6 +953,11 @@ ${conflicts.length > 0 ? `⚠️ ${conflicts.length} conflitti rilevati` : '✅ 
               {isSourceCell && <Copy className="h-2 w-2 text-green-600" />}
               {hasClipboard && canEdit && <Clipboard className="h-2 w-2 text-blue-600" />}
               {isLocked && <Lock className="h-2 w-2 text-orange-600" />}
+              {getValidationIcon() && (
+                <span className="text-xs" title={`Stato: ${statusConfig?.label}`}>
+                  {getValidationIcon()}
+                </span>
+              )}
               {canEdit && <Edit className="h-2 w-2 text-gray-400 opacity-50" />}
             </div>
           </div>
