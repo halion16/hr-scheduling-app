@@ -219,8 +219,10 @@ export const useAuth = (): AuthContextType => {
       return { error: new Error('Utente non trovato') };
     }
 
-    // Check password
-    const expectedPassword = DEFAULT_PASSWORDS[email];
+    // Check password - first check stored passwords, then default ones
+    const storedPasswords = JSON.parse(localStorage.getItem('hr-auth-passwords') || '{}');
+    const expectedPassword = storedPasswords[email] || DEFAULT_PASSWORDS[email];
+
     if (!expectedPassword || password !== expectedPassword) {
       setState(prev => ({ ...prev, loading: false, error: 'Password non corretta' }));
       return { error: new Error('Password non corretta') };
@@ -266,6 +268,10 @@ export const useAuth = (): AuthContextType => {
       first_name: firstName,
       last_name: lastName,
       role: 'user', // Default role
+      custom_permissions: [
+        'view_analytics',
+        'export_data'
+      ],
       assigned_store_ids: [],
       is_active: true,
       created_at: new Date().toISOString(),

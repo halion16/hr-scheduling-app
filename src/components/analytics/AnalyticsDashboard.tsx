@@ -1,3 +1,17 @@
+/*
+ * ⚠️  DASHBOARD AI DISABILITATO ⚠️
+ *
+ * Questo componente NON era nella roadmap originale.
+ * È stato implementato erroneamente e ora è disabilitato.
+ *
+ * La roadmap originale (FASI 1-4) è completata e funzionante.
+ * Questo dashboard AI rimane solo come riferimento futuro.
+ *
+ * Per accedere alle funzionalità originali usare:
+ * - BalancingPanel (sistema di bilanciamento principale)
+ * - WorkloadDashboard (dashboard workload originale)
+ */
+
 import React, { useState, useMemo } from 'react';
 import { Brain, TrendingUp, AlertTriangle, Target, Clock, Users, BarChart3, PieChart, Activity, Zap, Shield, CheckCircle } from 'lucide-react';
 import { useSchedulingAI, AISchedulingSuggestion, SchedulingMetrics, WorkloadPrediction } from '../../hooks/useSchedulingAI';

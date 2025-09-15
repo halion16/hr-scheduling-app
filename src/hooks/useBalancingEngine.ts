@@ -262,7 +262,8 @@ export const useBalancingEngine = ({
       };
     }
 
-    // Find shifts to redistribute
+    // FASE 2.1: Enhanced Redistribution Algorithm
+    // 1. Trova turni da spostare dal dipendente sovraccarico
     const sourceShifts = shifts.filter(shift =>
       shift.employeeId === suggestion.sourceEmployeeId &&
       !shift.isLocked
@@ -277,8 +278,41 @@ export const useBalancingEngine = ({
       };
     }
 
+    // 2. Identifica turni compatibili (date, orari, competenze)
+    const compatibleShifts = sourceShifts.filter(shift => {
+      // Controlla se il target employee può lavorare in questo store
+      if (targetEmployee.storeId !== shift.storeId && targetEmployee.storeId !== 'all') {
+        return false; // No cross-store transfers as per requirements
+      }
+
+      // Verifica competenze (role compatibility)
+      if (targetEmployee.role === 'junior' && sourceEmployee.role === 'senior') {
+        // Junior può prendere turni di senior solo se sono turni corti (<= 6h)
+        const shiftHours = shift.actualHours || calculateShiftHours(shift.startTime, shift.endTime, shift.breakDuration);
+        return shiftHours <= 6;
+      }
+
+      // Controlla sovrapposizioni con turni esistenti del target
+      const targetExistingShifts = shifts.filter(s => s.employeeId === suggestion.targetEmployeeId);
+      const hasOverlap = targetExistingShifts.some(existingShift => {
+        return existingShift.date.toDateString() === shift.date.toDateString() &&
+               existingShift.id !== shift.id;
+      });
+
+      return !hasOverlap;
+    });
+
+    if (compatibleShifts.length === 0) {
+      return {
+        success: false,
+        modifiedShifts: [],
+        errors: ['Nessun turno compatibile trovato per la redistribuzione (vincoli competenze/disponibilità)'],
+        summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
+      };
+    }
+
     // Sort by hours (smallest first) to redistribute gradually
-    const sortedShifts = sourceShifts
+    const sortedShifts = compatibleShifts
       .map(shift => ({
         shift,
         hours: shift.actualHours || calculateShiftHours(shift.startTime, shift.endTime, shift.breakDuration)
@@ -365,7 +399,21 @@ export const useBalancingEngine = ({
       };
     }
 
-    // Find a compatible shift from target employee
+    // FASE 2.2: Enhanced Swap Algorithm
+    // 1. Identifica i due turni specifici da scambiare
+    const sourceEmployee = findEmployeeById(suggestion.sourceEmployeeId);
+    const targetEmployee = findEmployeeById(suggestion.targetEmployeeId);
+
+    if (!sourceEmployee || !targetEmployee) {
+      return {
+        success: false,
+        modifiedShifts: [],
+        errors: ['Dipendenti non trovati per lo scambio'],
+        summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
+      };
+    }
+
+    // Find compatible shifts from target employee
     const targetShifts = shifts.filter(shift =>
       shift.employeeId === suggestion.targetEmployeeId &&
       !shift.isLocked &&
@@ -376,13 +424,50 @@ export const useBalancingEngine = ({
       return {
         success: false,
         modifiedShifts: [],
-        errors: ['Nessun turno compatibile trovato per lo scambio'],
+        errors: ['Nessun turno disponibile per lo scambio dal dipendente target'],
         summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
       };
     }
 
-    // Find best match (similar hours, different day/store)
+    // 2. Verifica compatibilità (competenze, disponibilità)
     const shift1Hours = shift1.actualHours || calculateShiftHours(shift1.startTime, shift1.endTime, shift1.breakDuration);
+
+    const compatibleTargetShifts = targetShifts.filter(shift2 => {
+      // Verifica che entrambi possano lavorare negli store dell'altro
+      const shift1Store = findStoreById(shift1.storeId);
+      const shift2Store = findStoreById(shift2.storeId);
+
+      if (!shift1Store || !shift2Store) return false;
+
+      // No cross-store swaps (as per requirements)
+      if (shift1.storeId !== shift2.storeId) return false;
+
+      // Verifica competenze reciproche
+      const shift2Hours = shift2.actualHours || calculateShiftHours(shift2.startTime, shift2.endTime, shift2.breakDuration);
+
+      // Source employee deve poter gestire il turno target
+      if (sourceEmployee.role === 'junior' && shift2Hours > 6) return false;
+
+      // Target employee deve poter gestire il turno source
+      if (targetEmployee.role === 'junior' && shift1Hours > 6) return false;
+
+      // Evita swap nello stesso giorno (non ha senso)
+      if (shift1.date.toDateString() === shift2.date.toDateString()) return false;
+
+      return true;
+    });
+
+    if (compatibleTargetShifts.length === 0) {
+      return {
+        success: false,
+        modifiedShifts: [],
+        errors: ['Nessun turno compatibile trovato per lo scambio (vincoli competenze/store)'],
+        summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
+      };
+    }
+
+    // Find best match (similar hours, different day)
+    const shift1Hours_calc = shift1.actualHours || calculateShiftHours(shift1.startTime, shift1.endTime, shift1.breakDuration);
 
     const bestMatch = targetShifts
       .map(shift => ({
@@ -592,7 +677,8 @@ export const useBalancingEngine = ({
       };
     }
 
-    // Trova turni modificabili del dipendente
+    // FASE 2.4: Enhanced Hours Adjustment Algorithm
+    // 1. Identifica turni da modificare (orari start/end)
     const employeeShifts = shifts.filter(shift =>
       shift.employeeId === suggestion.sourceEmployeeId &&
       !shift.isLocked
@@ -602,7 +688,18 @@ export const useBalancingEngine = ({
       return {
         success: false,
         modifiedShifts: [],
-        errors: ['Nessun turno modificabile trovato'],
+        errors: ['Nessun turno modificabile trovato per aggiustamento orari'],
+        summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
+      };
+    }
+
+    // 2. Calcola nuovi orari ottimali
+    const targetEmployee = findEmployeeById(suggestion.sourceEmployeeId);
+    if (!targetEmployee) {
+      return {
+        success: false,
+        modifiedShifts: [],
+        errors: ['Dipendente non trovato'],
         summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
       };
     }
@@ -610,13 +707,54 @@ export const useBalancingEngine = ({
     const hoursChange = suggestion.proposedChanges.impact.hoursChange;
     const isReduction = suggestion.proposedChanges.action.includes('Riduci');
 
-    // Applica aggiustamento al turno più lungo (più flessibile)
-    const targetShift = employeeShifts
-      .map(shift => ({
-        shift,
-        hours: shift.actualHours || calculateShiftHours(shift.startTime, shift.endTime, shift.breakDuration)
-      }))
-      .sort((a, b) => b.hours - a.hours)[0]; // Turno più lungo
+    // 3. Verifica vincoli operativi prima della modifica
+    const shiftsWithHours = employeeShifts.map(shift => ({
+      shift,
+      hours: shift.actualHours || calculateShiftHours(shift.startTime, shift.endTime, shift.breakDuration)
+    }));
+
+    // Scegli il turno più appropriato per l'aggiustamento
+    let targetShift;
+    if (isReduction) {
+      // Per riduzioni, scegli il turno più lungo (più margine)
+      targetShift = shiftsWithHours.sort((a, b) => b.hours - a.hours)[0];
+    } else {
+      // Per aumenti, scegli il turno più corto (meno stress)
+      targetShift = shiftsWithHours.sort((a, b) => a.hours - b.hours)[0];
+    }
+
+    // Verifica che l'aggiustamento sia praticabile
+    const currentHours = targetShift.hours;
+    const newHours = Math.max(2, currentHours + (isReduction ? -hoursChange : hoursChange)); // Min 2 ore per turno
+
+    // Limiti operativi
+    if (newHours > 12) {
+      return {
+        success: false,
+        modifiedShifts: [],
+        errors: ['Aggiustamento orari risulterebbe in turno troppo lungo (>12h)'],
+        summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
+      };
+    }
+
+    if (newHours < 2) {
+      return {
+        success: false,
+        modifiedShifts: [],
+        errors: ['Aggiustamento orari risulterebbe in turno troppo corto (<2h)'],
+        summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
+      };
+    }
+
+    // Verifica competenze per nuova durata
+    if (targetEmployee.role === 'junior' && newHours > 6) {
+      return {
+        success: false,
+        modifiedShifts: [],
+        errors: ['Dipendente junior non può lavorare più di 6 ore consecutive'],
+        summary: { shiftsModified: 0, employeesAffected: [], hoursRedistributed: 0 }
+      };
+    }
 
     if (!targetShift) {
       return {
@@ -628,12 +766,12 @@ export const useBalancingEngine = ({
     }
 
     // Calcola nuovo orario di fine
-    const currentHours = targetShift.hours;
-    const newHours = isReduction ?
-      Math.max(4, currentHours - hoursChange) : // Minimo 4 ore
-      Math.min(12, currentHours + hoursChange); // Massimo 12 ore
+    const targetCurrentHours = targetShift.hours;
+    const targetNewHours = isReduction ?
+      Math.max(4, targetCurrentHours - hoursChange) : // Minimo 4 ore
+      Math.min(12, targetCurrentHours + hoursChange); // Massimo 12 ore
 
-    const actualAdjustment = Math.abs(newHours - currentHours);
+    const actualAdjustment = Math.abs(targetNewHours - targetCurrentHours);
 
     if (actualAdjustment < 0.5) {
       return {
@@ -647,7 +785,7 @@ export const useBalancingEngine = ({
     // Calcola nuovo orario di fine basato sulla durata desiderata
     const startTime = new Date(`2000-01-01T${targetShift.shift.startTime}`);
     const breakMinutes = targetShift.shift.breakDuration || 0;
-    const totalMinutes = (newHours * 60) + breakMinutes;
+    const totalMinutes = (targetNewHours * 60) + breakMinutes;
     const endTime = new Date(startTime.getTime() + totalMinutes * 60 * 1000);
 
     const newEndTime = endTime.toTimeString().substring(0, 5);
@@ -657,7 +795,7 @@ export const useBalancingEngine = ({
       id: targetShift.shift.id,
       data: {
         endTime: newEndTime,
-        actualHours: newHours,
+        actualHours: targetNewHours,
         updatedAt: new Date()
       }
     }];
@@ -788,6 +926,11 @@ export const useBalancingEngine = ({
     applySuggestion,
     applyMultipleSuggestions,
     validateBalancingAction,
+
+    // Individual FASE 1 functions as per roadmap
+    applyRedistribution,
+    applySwapShifts,
+    applyHoursAdjustment: applyAdjustHours, // Alias per compatibilità roadmap
 
     // State
     isProcessing,

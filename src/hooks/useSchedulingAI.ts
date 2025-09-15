@@ -1,3 +1,19 @@
+/*
+ * ⚠️  SISTEMA AI DISABILITATO ⚠️
+ *
+ * Questo file contiene funzionalità AI che NON erano nella roadmap originale.
+ * È stato implementato erroneamente durante lo sviluppo delle fasi 1-4.
+ *
+ * ROADMAP ORIGINALE completata:
+ * ✅ FASE 1: Creazione Servizio di Bilanciamento
+ * ✅ FASE 2: Implementazione Logiche Specifiche
+ * ✅ FASE 3: Sistema di Validazione Avanzata
+ * ✅ FASE 4: Integrazione con UI
+ *
+ * Questo AI non è utilizzato nell'applicazione principale.
+ * Conservato solo come riferimento per sviluppi futuri.
+ */
+
 import { useMemo, useCallback, useRef } from 'react';
 import { Employee, Store, Shift } from '../types';
 

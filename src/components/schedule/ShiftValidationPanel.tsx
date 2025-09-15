@@ -317,9 +317,9 @@ export const ShiftValidationPanel: React.FC<ShiftValidationPanelProps> = ({
                     ))}
                   </div>
                 </div>
-              </div>
-            );
-          })}
+                </div>
+              );
+            })}
           </div>
 
           {filteredShifts.length === 0 && (

@@ -16,7 +16,7 @@ import {
   Brain
 } from 'lucide-react';
 
-export type View = 'schedule' | 'timeline' | 'validation' | 'employees' | 'stores' | 'weekend-report' | 'unavailability' | 'hour-bank' | 'users' | 'workload-dashboard' | 'analytics';
+export type View = 'schedule' | 'timeline' | 'validation' | 'employees' | 'stores' | 'weekend-report' | 'unavailability' | 'hour-bank' | 'users' | 'workload-dashboard'; // | 'analytics'; // DISABLED: AI Analytics non era nella roadmap originale
 
 interface UseNavigationProps {
   profile: UserProfile | null;
@@ -48,13 +48,14 @@ export const useNavigation = ({ profile, hasPermission }: UseNavigationProps) =>
       permission: 'view_analytics',
       minRole: 'manager'
     },
-    {
-      id: 'analytics',
-      name: 'AI Analytics',
-      icon: Brain,
-      permission: 'view_analytics',
-      minRole: 'manager'
-    },
+    // DISABLED: AI Analytics non era nella roadmap originale - funzionalità aggiunta erroneamente
+    // {
+    //   id: 'analytics',
+    //   name: 'AI Analytics',
+    //   icon: Brain,
+    //   permission: 'view_analytics',
+    //   minRole: 'manager'
+    // },
     { 
       id: 'validation', 
       name: 'Convalida', 

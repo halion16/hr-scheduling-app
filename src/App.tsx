@@ -6,6 +6,7 @@ import { ProtectedRoute, usePermissionGuard } from './components/auth/ProtectedR
 import { Employee, Store } from './types';
 import { useScheduleData } from './hooks/useScheduleData';
 import { useBalancingEngine } from './hooks/useBalancingEngine';
+import { useAdvancedValidation } from './hooks/useAdvancedValidation';
 import { usePreferences } from './hooks/usePreferences';
 import { useDataLoadingIndicator } from './hooks/useDataLoadingIndicator';
 import { useNotifications } from './hooks/useNotifications';
@@ -34,7 +35,8 @@ import { ValidationConfigPanel } from './components/admin/ValidationConfigPanel'
 import { WorkloadDashboard } from './components/workload/WorkloadDashboard';
 import { AlertPanel } from './components/alerts/AlertPanel';
 import { BalancingPanel } from './components/BalancingPanel';
-import { AnalyticsDashboard } from './components/analytics/AnalyticsDashboard';
+// DISABLED: AI Analytics non era nella roadmap originale
+// import { AnalyticsDashboard } from './components/analytics/AnalyticsDashboard';
 import { useWorkloadAlerts } from './hooks/useWorkloadAlerts';
 import { Users, Calendar, CalendarX } from 'lucide-react';
 import { exportScheduleToExcel, exportEmployeesToExcel } from './utils/exportUtils';
@@ -88,6 +90,14 @@ function AppContent() {
     onUpdateShifts: updateShifts,
     onAddShift: addShift,
     onDeleteShift: deleteShift
+  });
+
+  // 🆕 FASE 3: Initialize Advanced Validation System
+  const advancedValidation = useAdvancedValidation({
+    shifts,
+    employees,
+    stores,
+    onUpdateShifts: updateShifts
   });
 
   const { preferences, updatePreferences, resetPreferences } = usePreferences();
@@ -388,34 +398,142 @@ function AppContent() {
     showSuccessNotification(`✅ Sincronizzati ${apiEmployees.length} dipendenti da API aziendale!`);
   };
 
-  // 🆕 HANDLERS PER BILANCIAMENTO AUTOMATICO
+  // 🆕 FASE 4: ENHANCED BALANCING HANDLER WITH ADVANCED VALIDATION
   const handleApplyBalancingSuggestion = async (suggestion: BalancingSuggestion) => {
     try {
-      console.log('🔄 Applicando suggerimento di bilanciamento:', suggestion);
+      console.log('🔄 FASE 4: Applicando suggerimento di bilanciamento con validazione avanzata:', suggestion);
 
-      // Apply suggestion using the balancing engine
+      // FASE 4.1: Progress Indicator
+      showSuccessNotification(`🔄 Preparazione applicazione: ${suggestion.title}...`);
+
+      // Create snapshot before applying changes
+      const snapshotId = advancedValidation.createSnapshot(
+        `Pre-applicazione: ${suggestion.title}`,
+        'balance_suggestion_apply',
+        suggestion
+      );
+
+      // FASE 4.2: Preview Changes - Simulate what will happen
+      const affectedShifts: Shift[] = [];
+
+      if (suggestion.shiftId) {
+        const shift = shifts.find(s => s.id === suggestion.shiftId);
+        if (shift) affectedShifts.push(shift);
+      }
+
+      if (suggestion.sourceEmployeeId) {
+        const sourceShifts = shifts.filter(s =>
+          s.employeeId === suggestion.sourceEmployeeId && !s.isLocked
+        );
+        affectedShifts.push(...sourceShifts.slice(0, 3)); // Max 3 for preview
+      }
+
+      // FASE 4.3: Advanced Validation
+      showSuccessNotification('🔍 Validazione avanzata in corso...');
+      const validation = await advancedValidation.performAdvancedValidation(suggestion, affectedShifts);
+
+      // FASE 4.4: User Confirmation for Critical Operations
+      if (!validation.canProceed) {
+        showErrorNotification(
+          `❌ Validazione fallita: ${validation.checks.filter(c => c.severity === 'error').length} errori rilevati`
+        );
+
+        // Show detailed errors
+        validation.checks
+          .filter(c => c.severity === 'error')
+          .slice(0, 3) // Show max 3 errors
+          .forEach(check => {
+            showErrorNotification(`🚫 ${check.name}: ${check.message}`);
+          });
+
+        return;
+      }
+
+      // Show warnings if any
+      const warnings = validation.checks.filter(c => c.severity === 'warning');
+      if (warnings.length > 0) {
+        showErrorNotification(
+          `⚠️ ${warnings.length} avvisi rilevati. Successo stimato: ${validation.estimatedSuccess}%`
+        );
+      }
+
+      // FASE 4.5: User Confirmation for Critical Operations
+      const isCriticalOperation =
+        suggestion.type === 'redistribute' ||
+        validation.estimatedSuccess < 70 ||
+        warnings.length > 2;
+
+      if (isCriticalOperation) {
+        const confirmationMessage =
+          `🤔 Operazione critica rilevata:\n\n` +
+          `📋 ${suggestion.title}\n` +
+          `📊 Successo stimato: ${validation.estimatedSuccess}%\n` +
+          `⚠️ ${warnings.length} avvisi, ${validation.summary.errors} errori\n\n` +
+          `Continuare con l'applicazione?`;
+
+        if (!confirm(confirmationMessage)) {
+          showSuccessNotification('🚫 Operazione annullata dall\'utente');
+          return;
+        }
+      }
+
+      // FASE 4.6: Apply suggestion with enhanced feedback
+      showSuccessNotification('⚙️ Applicazione modifiche in corso...');
       const result = await balancingEngine.applySuggestion(suggestion);
 
       if (result.success) {
         const { shiftsModified, employeesAffected, hoursRedistributed } = result.summary;
+
         showSuccessNotification(
           `✅ ${suggestion.title} applicato con successo!\n` +
-          `📊 ${shiftsModified} turni modificati, ${employeesAffected.length} dipendenti coinvolti, ` +
-          `${hoursRedistributed.toFixed(1)}h redistribuite`
+          `📊 ${shiftsModified} turni modificati, ${employeesAffected.length} dipendenti coinvolti\n` +
+          `⏱️ ${hoursRedistributed.toFixed(1)}h redistribuite\n` +
+          `📈 Successo reale: ${validation.estimatedSuccess}%\n` +
+          `💾 Snapshot salvato: ${snapshotId.substring(0, 8)}...`
         );
 
-        // Show warnings if any
-        if (result.errors.length > 0) {
-          result.errors.forEach(warning => {
-            showErrorNotification(`⚠️ ${warning}`);
-          });
-        }
+        // Show validation warnings as info
+        warnings.slice(0, 2).forEach(warning => {
+          showSuccessNotification(`ℹ️ ${warning.name}: ${warning.message}`);
+        });
+
+        // Log successful application
+        console.log('✅ FASE 4: Bilanciamento applicato con successo', {
+          suggestion: suggestion.type,
+          validation: validation.estimatedSuccess,
+          snapshot: snapshotId,
+          result: result.summary
+        });
+
       } else {
-        showErrorNotification(`❌ Errore nell'applicazione: ${result.errors.join(', ')}`);
+        // Handle failure - offer rollback
+        showErrorNotification(
+          `❌ Errore nell'applicazione: ${result.errors.join(', ')}\n` +
+          `🔄 Rollback automatico disponibile con snapshot: ${snapshotId.substring(0, 8)}...`
+        );
+
+        // Auto-rollback on critical failures
+        if (result.errors.some(e => e.includes('Error') || e.includes('Exception'))) {
+          showSuccessNotification('🔄 Eseguendo rollback automatico...');
+          const rollbackResult = await advancedValidation.rollbackToSnapshot(snapshotId);
+
+          if (rollbackResult.success) {
+            showSuccessNotification('✅ Rollback automatico completato con successo');
+          } else {
+            showErrorNotification('❌ Rollback fallito: ' + rollbackResult.errors.join(', '));
+          }
+        }
       }
+
     } catch (error) {
-      console.error('❌ Errore applicazione suggerimento:', error);
-      showErrorNotification('❌ Errore durante l\'applicazione del suggerimento');
+      console.error('❌ FASE 4: Errore applicazione suggerimento:', error);
+      showErrorNotification(
+        `❌ Errore critico durante l'applicazione del suggerimento\n` +
+        `🔧 ${error instanceof Error ? error.message : 'Errore sconosciuto'}\n` +
+        `💡 Verifica i log per dettagli tecnici`
+      );
+    } finally {
+      // Loading will be handled by the indicator hook
     }
   };
 
@@ -478,9 +596,8 @@ function AppContent() {
         });
         updatedCount++;
       } else {
-        // Aggiungi nuovo dipendente - PRESERVA L'ID!
+        // Aggiungi nuovo dipendente - ID will be generated automatically
         addEmployee({
-          id: emp.id, // 🔧 FIX CRITICO: Preserva l'ID dall'importazione!
           firstName: emp.firstName,
           lastName: emp.lastName,
           email: emp.email,
@@ -561,7 +678,7 @@ function AppContent() {
 
         <main className="flex-1 overflow-auto bg-gray-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {(currentView === 'schedule' || currentView === 'timeline' || currentView === 'validation' || currentView === 'workload-dashboard' || currentView === 'analytics') && (
+        {(currentView === 'schedule' || currentView === 'timeline' || currentView === 'validation' || currentView === 'workload-dashboard') && ( // DISABLED: AI Analytics - FIXED
           <ProtectedRoute requiredPermission="manage_shifts">
           <div className="space-y-6">
             <ScheduleHeader
@@ -685,7 +802,7 @@ function AppContent() {
           </ProtectedRoute>
         )}
 
-        {/* AI Analytics Dashboard */}
+        {/* DISABLED: AI Analytics Dashboard - non era nella roadmap originale
         {currentView === 'analytics' && (
           <ProtectedRoute requiredPermission="view_analytics">
             <div className="space-y-6">
@@ -706,6 +823,7 @@ function AppContent() {
             </div>
           </ProtectedRoute>
         )}
+        */}
 
         {/* Report Weekend */}
         {currentView === 'weekend-report' && (
