@@ -5,6 +5,7 @@ import { UserManagement } from './components/auth/UserManagement';
 import { ProtectedRoute, usePermissionGuard } from './components/auth/ProtectedRoute';
 import { Employee, Store } from './types';
 import { useScheduleData } from './hooks/useScheduleData';
+import { useBalancingEngine } from './hooks/useBalancingEngine';
 import { usePreferences } from './hooks/usePreferences';
 import { useDataLoadingIndicator } from './hooks/useDataLoadingIndicator';
 import { useNotifications } from './hooks/useNotifications';
@@ -39,6 +40,7 @@ import { exportScheduleToExcel, exportEmployeesToExcel } from './utils/exportUti
 import { getStartOfWeek, getEndOfWeek } from './utils/timeUtils';
 import { ValidationAdminSettings } from './types/validation';
 import { ShiftValidationStatus, createWorkflowEngine } from './utils/workflowEngine';
+import { BalancingSuggestion } from './hooks/useWorkloadBalancer';
 import { Shift } from './types';
 
 type ModalType = 'employee' | 'store' | 'preferences' | 'api-settings' | 'employee-sync' | 'debug' | 'validation-config' | null;
@@ -76,6 +78,16 @@ function AppContent() {
     updateUnavailability,
     deleteUnavailability
   } = useScheduleData();
+
+  // 🆕 Initialize Balancing Engine
+  const balancingEngine = useBalancingEngine({
+    shifts,
+    employees,
+    stores,
+    onUpdateShifts: updateShifts,
+    onAddShift: addShift,
+    onDeleteShift: deleteShift
+  });
 
   const { preferences, updatePreferences, resetPreferences } = usePreferences();
   
@@ -376,28 +388,64 @@ function AppContent() {
   };
 
   // 🆕 HANDLERS PER BILANCIAMENTO AUTOMATICO
-  const handleApplyBalancingSuggestion = async (suggestion: any) => {
+  const handleApplyBalancingSuggestion = async (suggestion: BalancingSuggestion) => {
     try {
       console.log('🔄 Applicando suggerimento di bilanciamento:', suggestion);
-      
-      // Simula l'applicazione del suggerimento (qui implementeresti la logica reale)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      showSuccessNotification(`✅ Suggerimento applicato: ${suggestion.title}`);
+
+      // Apply suggestion using the balancing engine
+      const result = await balancingEngine.applySuggestion(suggestion);
+
+      if (result.success) {
+        const { shiftsModified, employeesAffected, hoursRedistributed } = result.summary;
+        showSuccessNotification(
+          `✅ ${suggestion.title} applicato con successo!\n` +
+          `📊 ${shiftsModified} turni modificati, ${employeesAffected.length} dipendenti coinvolti, ` +
+          `${hoursRedistributed.toFixed(1)}h redistribuite`
+        );
+
+        // Show warnings if any
+        if (result.errors.length > 0) {
+          result.errors.forEach(warning => {
+            showErrorNotification(`⚠️ ${warning}`);
+          });
+        }
+      } else {
+        showErrorNotification(`❌ Errore nell'applicazione: ${result.errors.join(', ')}`);
+      }
     } catch (error) {
       console.error('❌ Errore applicazione suggerimento:', error);
       showErrorNotification('❌ Errore durante l\'applicazione del suggerimento');
     }
   };
 
-  const handleApplyAllAutoSuggestions = async (suggestions: any[]) => {
+  const handleApplyAllAutoSuggestions = async (suggestions: BalancingSuggestion[]) => {
     try {
       console.log('🔄 Applicando tutti i suggerimenti automatici:', suggestions.length);
-      
-      // Simula l'applicazione di tutti i suggerimenti
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      showSuccessNotification(`✅ Applicati ${suggestions.length} suggerimenti automatici con successo!`);
+
+      // Apply all suggestions using the balancing engine
+      const result = await balancingEngine.applyMultipleSuggestions(suggestions);
+
+      const { successful, failed, summary } = result;
+
+      if (summary.successful > 0) {
+        showSuccessNotification(
+          `✅ Applicati ${summary.successful}/${summary.total} suggerimenti!\n` +
+          `📊 ${summary.totalShiftsModified} turni modificati, ` +
+          `${summary.totalHoursRedistributed.toFixed(1)}h redistribuite`
+        );
+      }
+
+      if (summary.failed > 0) {
+        const errorMessages = failed.slice(0, 3).map(f => f.error).join(', ');
+        showErrorNotification(
+          `❌ ${summary.failed} suggerimenti falliti: ${errorMessages}` +
+          (failed.length > 3 ? '...' : '')
+        );
+      }
+
+      if (summary.successful === 0 && summary.failed > 0) {
+        showErrorNotification('❌ Nessun suggerimento applicato con successo');
+      }
     } catch (error) {
       console.error('❌ Errore applicazione suggerimenti:', error);
       showErrorNotification('❌ Errore durante l\'applicazione dei suggerimenti');
