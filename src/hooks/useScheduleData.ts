@@ -524,6 +524,66 @@ export const useScheduleData = () => {
     localStorage.removeItem('hr-unavailabilities');
   };
 
+  // NEW: Bulk update function to handle multiple shifts atomically
+  const updateShifts = (updates: { id: string; data: Partial<Shift> }[]) => {
+    console.log('🔄 BULK UPDATE - Starting batch update for', updates.length, 'shifts');
+
+    setShifts(prev => {
+      const validShifts = prev.filter(shift => shift && shift.id);
+      let newShifts = [...validShifts];
+
+      // Apply all updates in a single transaction
+      for (const { id, data } of updates) {
+        const shiftIndex = newShifts.findIndex(shift => shift.id === id);
+
+        if (shiftIndex === -1) {
+          console.warn(`⚠️ Shift not found for bulk update: ${id}`);
+          continue;
+        }
+
+        const existingShift = newShifts[shiftIndex];
+
+        // Handle date validation
+        let validDate: Date;
+        if (data.date) {
+          if (data.date instanceof Date && !isNaN(data.date.getTime())) {
+            validDate = data.date;
+          } else {
+            try {
+              validDate = new Date(data.date);
+              if (isNaN(validDate.getTime())) {
+                throw new Error('Invalid date');
+              }
+            } catch {
+              validDate = existingShift.date || new Date();
+            }
+          }
+        } else {
+          validDate = existingShift.date || new Date();
+        }
+
+        // Create updated shift
+        const updatedShift: Shift = {
+          ...existingShift,
+          ...data,
+          date: validDate,
+          updatedAt: new Date()
+        };
+
+        // Validate updated shift
+        if (validateShiftData(updatedShift)) {
+          newShifts[shiftIndex] = updatedShift;
+          console.log(`✅ Bulk updated shift ${id}`);
+        } else {
+          console.error(`❌ Invalid data for shift ${id}, skipping`);
+        }
+      }
+
+      console.log(`🎯 Bulk update completed: ${updates.length} requested, ${newShifts.length} total shifts`);
+      return newShifts;
+    });
+  };
+
   // Add debug method to the returned object
   return {
     employees,
@@ -538,6 +598,7 @@ export const useScheduleData = () => {
     deleteStore,
     addShift,
     updateShift,
+    updateShifts, // 🆕 New bulk update function
     deleteShift,
     addUnavailability,
     updateUnavailability,

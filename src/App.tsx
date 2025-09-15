@@ -38,6 +38,8 @@ import { Users, Calendar, CalendarX } from 'lucide-react';
 import { exportScheduleToExcel, exportEmployeesToExcel } from './utils/exportUtils';
 import { getStartOfWeek, getEndOfWeek } from './utils/timeUtils';
 import { ValidationAdminSettings } from './types/validation';
+import { ShiftValidationStatus, createWorkflowEngine } from './utils/workflowEngine';
+import { Shift } from './types';
 
 type ModalType = 'employee' | 'store' | 'preferences' | 'api-settings' | 'employee-sync' | 'debug' | 'validation-config' | null;
 
@@ -68,6 +70,7 @@ function AppContent() {
     deleteStore,
     addShift,
     updateShift,
+    updateShifts,
     deleteShift,
     addUnavailability,
     updateUnavailability,
@@ -264,40 +267,69 @@ function AppContent() {
     }
   };
 
+  // NEW: Workflow transition handler using bulk updates to avoid race conditions
+  const handleWorkflowTransition = async (shiftsToUpdate: Shift[], targetStatus: ShiftValidationStatus, reason?: string) => {
+    console.log(`🔄 Starting workflow transition to ${targetStatus} for ${shiftsToUpdate.length} shifts`);
+
+    try {
+      // Create workflow engine
+      const workflowEngine = createWorkflowEngine({
+        employees,
+        stores,
+        allShifts: shifts,
+        bulkOperation: true
+      });
+
+      // Execute bulk workflow transition
+      const result = await workflowEngine.executeBulkTransition(
+        shiftsToUpdate,
+        targetStatus,
+        profile?.role || 'user',
+        profile?.displayName || 'Utente',
+        reason
+      );
+
+      console.log(`🎯 Workflow bulk transition result:`, result);
+
+      if (result.successful.length > 0) {
+        // Use the new updateShifts function for atomic bulk updates
+        const updates = result.successful.map(shift => ({
+          id: shift.id,
+          data: {
+            validationStatus: shift.validationStatus,
+            isLocked: targetStatus === 'locked_final',
+            lockedAt: targetStatus === 'locked_final' ? new Date() : undefined,
+            lockedBy: targetStatus === 'locked_final' ? profile?.displayName : undefined,
+            notes: reason ? `${shift.notes || ''}\n[${targetStatus}: ${reason}]`.trim() : shift.notes
+          } as Partial<Shift>
+        }));
+
+        updateShifts(updates);
+
+        showSuccessNotification(
+          `✅ Transizione workflow completata: ${result.successful.length}/${shiftsToUpdate.length} turni aggiornati a "${targetStatus}"`
+        );
+      }
+
+      if (result.failed.length > 0) {
+        const failedMessages = result.failed.map(f => f.error).join(', ');
+        showErrorNotification(
+          `⚠️ ${result.failed.length} turni non sono stati aggiornati: ${failedMessages}`
+        );
+      }
+
+      console.log(`📊 Workflow Summary:`, result.summary);
+
+    } catch (error) {
+      console.error('❌ Workflow transition failed:', error);
+      showErrorNotification('❌ Errore durante la transizione workflow');
+    }
+  };
+
+  // LEGACY: Keep old function for backward compatibility
   const handleBulkShiftLock = (shiftIds: string[], reason?: string) => {
-    // Traccia successi e fallimenti
-    let successCount = 0;
-    let failCount = 0;
-    
-    shiftIds.forEach(shiftId => {
-      const shift = shifts.find(s => s.id === shiftId);
-      if (!shift) {
-        failCount++;
-        return;
-      }
-      
-      try {
-        const updateData = {
-          isLocked: true,
-          lockedAt: new Date(),
-          lockedBy: 'admin',
-          notes: reason ? `${shift.notes || ''}\n[Blocco: ${reason}]`.trim() : shift.notes
-        };
-        
-        updateShift(shiftId, updateData);
-        successCount++;
-      } catch (error) {
-        failCount++;
-      }
-    });
-    
-    // Mostra notifica di completamento
-    setTimeout(() => {
-      const totalMessage = `✅ Operazione completata: ${successCount}/${shiftIds.length} turni bloccati con successo`;
-      if (successCount > 0) {
-        showSuccessNotification(totalMessage);
-      }
-    }, 500);
+    const shiftsToUpdate = shifts.filter(shift => shiftIds.includes(shift.id));
+    handleWorkflowTransition(shiftsToUpdate, 'locked_final', reason);
   };
 
   const handleExportSchedule = () => {
@@ -530,8 +562,8 @@ function AppContent() {
                       employees={weeklySchedule.employees}
                       stores={stores}
                       userRole={profile.role}
-                      onToggleLock={handleShiftToggleLock}
-                      onBulkLock={handleBulkShiftLock}
+                      userName={profile?.displayName || 'Utente'}
+                      onWorkflowTransition={handleWorkflowTransition}
                     />
                   </ProtectedRoute>
                 )}
