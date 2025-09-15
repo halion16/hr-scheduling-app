@@ -487,56 +487,8 @@ function generateBalancingSuggestions(
     }
   });
 
-  // 🆕 5. SUGGERIMENTI PER OTTIMIZZAZIONE TRA NEGOZI DIVERSI
-  // Analizza sbilanciamenti tra negozi e suggerisce trasferimenti di dipendenti/turni
-  const overstaffedStores = metrics.storeBalance.filter(store => store.staffingLevel === 'overstaffed');
-  const understaffedStores = metrics.storeBalance.filter(store => store.staffingLevel === 'understaffed');
-
-  overstaffedStores.forEach(overstaffedStore => {
-    understaffedStores.forEach(understaffedStore => {
-      // Trova dipendenti nel negozio sovradotato che potrebbero essere trasferiti
-      const availableEmployees = employeeStats.filter(emp =>
-        emp.employee.storeId === overstaffedStore.storeId &&
-        emp.totalHours > 0 &&
-        emp.deviationPercent > 0 // Dipendenti con troppe ore
-      );
-
-      if (availableEmployees.length > 0) {
-        const bestCandidate = availableEmployees.sort((a, b) => b.deviationPercent - a.deviationPercent)[0];
-        const hoursToTransfer = Math.min(
-          Math.abs(overstaffedStore.deviation) / 2,
-          Math.abs(understaffedStore.deviation) / 2,
-          bestCandidate.totalHours * 0.3 // Max 30% delle ore del dipendente
-        );
-
-        if (hoursToTransfer >= 4) { // Minimo 4 ore per essere sensato
-          suggestions.push({
-            id: `inter-store-transfer-${suggestionId++}`,
-            type: 'redistribute',
-            priority: Math.abs(overstaffedStore.deviation) > 15 ? 'high' : 'medium',
-            title: 'Trasferimento Tra Negozi',
-            description: `Trasferisci ${hoursToTransfer.toFixed(1)}h di ${bestCandidate.employee.firstName} da ${overstaffedStore.storeName} a ${understaffedStore.storeName}`,
-            sourceEmployeeId: bestCandidate.employee.id,
-            sourceEmployeeName: `${bestCandidate.employee.firstName} ${bestCandidate.employee.lastName}`,
-            storeId: understaffedStore.storeId,
-            storeName: understaffedStore.storeName,
-            proposedChanges: {
-              action: 'Trasferimento inter-negozio',
-              from: `${overstaffedStore.storeName} (${overstaffedStore.currentHours}h)`,
-              to: `${understaffedStore.storeName} (${understaffedStore.currentHours}h)`,
-              impact: {
-                hoursChange: hoursToTransfer,
-                equityImprovement: 12.5,
-                workloadBalance: 15.3
-              }
-            },
-            autoApplicable: false, // Richiede approvazione manuale per trasferimenti tra negozi
-            estimatedDuration: 25
-          });
-        }
-      }
-    });
-  });
+  // 🗑️ RIMOSSO: Trasferimenti tra negozi fisicamente impossibili
+  // I dipendenti non possono essere trasferiti tra negozi diversi
 
   // 🆕 6. SUGGERIMENTI PER CREAZIONE/RIMOZIONE TURNI
   metrics.storeBalance.forEach(store => {

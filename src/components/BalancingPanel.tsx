@@ -305,12 +305,6 @@ export const BalancingPanel: React.FC<BalancingPanelProps> = ({
                         Auto
                       </span>
                     )}
-                    {/* 🆕 Store transfer indicator */}
-                    {suggestion.storeId && suggestion.type === 'redistribute' && (
-                      <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">
-                        Inter-Negozio
-                      </span>
-                    )}
                     {/* 🆕 Special operation indicators */}
                     {suggestion.type === 'add_shift' && (
                       <span className="px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full">

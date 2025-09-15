@@ -225,10 +225,7 @@ export const useBalancingEngine = ({
           warnings.push(`${employee.firstName} ${employee.lastName} (junior) assegnato a turno lungo (${shift.actualHours}h) - potrebbe necessitare supervisione`);
         }
 
-        // Check for cross-store competency
-        if (suggestion.type === 'redistribute' && suggestion.storeId !== employee.storeId) {
-          warnings.push(`${employee.firstName} ${employee.lastName} viene trasferito in un negozio diverso - verificare competenze specifiche`);
-        }
+        // 🗑️ RIMOSSO: Controllo cross-store non più necessario (trasferimenti tra negozi disabilitati)
       }
     });
 
