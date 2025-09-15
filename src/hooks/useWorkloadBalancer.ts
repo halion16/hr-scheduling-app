@@ -311,13 +311,16 @@ function generateBalancingSuggestions(
   let suggestionId = 1;
 
   // 1. SUGGERIMENTI PER REDISTRIBUZIONE ORE
-  const overloadedEmployees = employeeStats.filter(stat => stat.deviationPercent > maxDeviationPercent);
-  const underloadedEmployees = employeeStats.filter(stat => stat.deviationPercent < -maxDeviationPercent);
+  // 🔧 FIX: Filtra solo dipendenti con ore effettive > 0
+  const overloadedEmployees = employeeStats.filter(stat =>
+    stat.deviationPercent > maxDeviationPercent && stat.totalHours > 0);
+  const underloadedEmployees = employeeStats.filter(stat =>
+    stat.deviationPercent < -maxDeviationPercent);
 
   overloadedEmployees.forEach(overloaded => {
     // Trova il dipendente sottoutilizzato più compatibile DELLO STESSO NEGOZIO
     const bestMatch = underloadedEmployees
-      .filter(under => 
+      .filter(under =>
         under.employee.id !== overloaded.employee.id &&
         under.employee.storeId === overloaded.employee.storeId // 🔧 STESSO NEGOZIO!
       )
@@ -330,70 +333,83 @@ function generateBalancingSuggestions(
         8 // Max 8 ore per redistribuzione
       );
 
-      suggestions.push({
-        id: `redistribute-${suggestionId++}`,
-        type: 'redistribute',
-        priority: overloaded.deviationPercent > 50 ? 'high' : 'medium',
-        title: 'Redistribuzione Ore',
-        description: `Sposta ${hoursToRedistribute.toFixed(1)}h da ${overloaded.employee.firstName} a ${bestMatch.employee.firstName}`,
-        sourceEmployeeId: overloaded.employee.id,
-        targetEmployeeId: bestMatch.employee.id,
-        sourceEmployeeName: `${overloaded.employee.firstName} ${overloaded.employee.lastName}`,
-        targetEmployeeName: `${bestMatch.employee.firstName} ${bestMatch.employee.lastName}`,
-        proposedChanges: {
-          action: `Redistribuisci ${hoursToRedistribute.toFixed(1)} ore`,
-          from: `${overloaded.totalHours}h`,
-          to: `${(overloaded.totalHours - hoursToRedistribute).toFixed(1)}h → ${(bestMatch.totalHours + hoursToRedistribute).toFixed(1)}h`,
-          impact: {
-            hoursChange: hoursToRedistribute,
-            equityImprovement: 8.5,
-            workloadBalance: 12.3
-          }
-        },
-        autoApplicable: hoursToRedistribute >= minShiftHours && hoursToRedistribute <= maxShiftHours,
-        estimatedDuration: 15
-      });
+      // 🔧 FIX: Verifica che la redistribuzione sia sensata (almeno 1 ora)
+      if (hoursToRedistribute >= 1 && overloaded.totalHours >= hoursToRedistribute) {
+        suggestions.push({
+          id: `redistribute-${suggestionId++}`,
+          type: 'redistribute',
+          priority: overloaded.deviationPercent > 50 ? 'high' : 'medium',
+          title: 'Redistribuzione Ore',
+          description: `Sposta ${hoursToRedistribute.toFixed(1)}h da ${overloaded.employee.firstName} (${overloaded.totalHours}h) a ${bestMatch.employee.firstName} (${bestMatch.totalHours}h)`,
+          sourceEmployeeId: overloaded.employee.id,
+          targetEmployeeId: bestMatch.employee.id,
+          sourceEmployeeName: `${overloaded.employee.firstName} ${overloaded.employee.lastName}`,
+          targetEmployeeName: `${bestMatch.employee.firstName} ${bestMatch.employee.lastName}`,
+          proposedChanges: {
+            action: `Redistribuisci ${hoursToRedistribute.toFixed(1)} ore`,
+            from: `${overloaded.totalHours}h → ${bestMatch.totalHours}h`,
+            to: `${(overloaded.totalHours - hoursToRedistribute).toFixed(1)}h → ${(bestMatch.totalHours + hoursToRedistribute).toFixed(1)}h`,
+            impact: {
+              hoursChange: hoursToRedistribute,
+              equityImprovement: 8.5,
+              workloadBalance: 12.3
+            }
+          },
+          autoApplicable: hoursToRedistribute >= minShiftHours && hoursToRedistribute <= maxShiftHours,
+          estimatedDuration: 15
+        });
+      }
     }
   });
 
   // 2. SUGGERIMENTI PER SCAMBIO TURNI (SOLO STESSO NEGOZIO)
   employeeStats.forEach(emp1 => {
-    if (Math.abs(emp1.deviationPercent) > 15) {
+    // 🔧 FIX: Verifica che il dipendente abbia effettivamente ore > 0
+    if (Math.abs(emp1.deviationPercent) > 15 && emp1.totalHours > 0) {
       employeeStats.forEach(emp2 => {
-        if (emp1.employee.id !== emp2.employee.id && 
+        if (emp1.employee.id !== emp2.employee.id &&
             emp1.employee.storeId === emp2.employee.storeId && // 🔧 STESSO NEGOZIO!
-            emp1.deviationPercent * emp2.deviationPercent < 0) { // Segni opposti
-          
+            emp1.deviationPercent * emp2.deviationPercent < 0 && // Segni opposti
+            emp2.totalHours > 0) { // 🔧 FIX: Anche emp2 deve avere ore > 0
+
           // Trova turni compatibili per lo scambio
           const compatibleSwaps = findCompatibleShiftSwaps(emp1.shifts, emp2.shifts);
-          
+
           if (compatibleSwaps.length > 0) {
             const bestSwap = compatibleSwaps[0];
-            
-            suggestions.push({
-              id: `swap-${suggestionId++}`,
-              type: 'swap_shifts',
-              priority: Math.max(Math.abs(emp1.deviationPercent), Math.abs(emp2.deviationPercent)) > 30 ? 'high' : 'medium',
-              title: 'Scambio Turni Ottimale',
-              description: `Scambia turni tra ${emp1.employee.firstName} e ${emp2.employee.firstName}`,
-              sourceEmployeeId: emp1.employee.id,
-              targetEmployeeId: emp2.employee.id,
-              sourceEmployeeName: `${emp1.employee.firstName} ${emp1.employee.lastName}`,
-              targetEmployeeName: `${emp2.employee.firstName} ${emp2.employee.lastName}`,
-              shiftId: bestSwap.shift1.id,
-              proposedChanges: {
-                action: 'Scambia turni',
-                from: `${bestSwap.shift1.startTime}-${bestSwap.shift1.endTime}`,
-                to: `${bestSwap.shift2.startTime}-${bestSwap.shift2.endTime}`,
-                impact: {
-                  hoursChange: Math.abs(bestSwap.hoursDiff),
-                  equityImprovement: 6.8,
-                  workloadBalance: 9.2
-                }
-              },
-              autoApplicable: true,
-              estimatedDuration: 10
-            });
+
+            // 🔧 FIX: Verifica nuovamente che i turni abbiano ore > 0
+            const shift1Hours = bestSwap.shift1.actualHours ||
+              Math.max(0, calculateShiftHours(bestSwap.shift1.startTime, bestSwap.shift1.endTime) - (bestSwap.shift1.breakDuration || 0) / 60);
+            const shift2Hours = bestSwap.shift2.actualHours ||
+              Math.max(0, calculateShiftHours(bestSwap.shift2.startTime, bestSwap.shift2.endTime) - (bestSwap.shift2.breakDuration || 0) / 60);
+
+            if (shift1Hours > 0 && shift2Hours > 0) {
+              suggestions.push({
+                id: `swap-${suggestionId++}`,
+                type: 'swap_shifts',
+                priority: Math.max(Math.abs(emp1.deviationPercent), Math.abs(emp2.deviationPercent)) > 30 ? 'high' : 'medium',
+                title: 'Scambio Turni Ottimale',
+                description: `Scambia turni tra ${emp1.employee.firstName} e ${emp2.employee.firstName}`,
+                sourceEmployeeId: emp1.employee.id,
+                targetEmployeeId: emp2.employee.id,
+                sourceEmployeeName: `${emp1.employee.firstName} ${emp1.employee.lastName}`,
+                targetEmployeeName: `${emp2.employee.firstName} ${emp2.employee.lastName}`,
+                shiftId: bestSwap.shift1.id,
+                proposedChanges: {
+                  action: 'Scambia turni',
+                  from: `${bestSwap.shift1.startTime}-${bestSwap.shift1.endTime} (${shift1Hours.toFixed(1)}h)`,
+                  to: `${bestSwap.shift2.startTime}-${bestSwap.shift2.endTime} (${shift2Hours.toFixed(1)}h)`,
+                  impact: {
+                    hoursChange: Math.abs(bestSwap.hoursDiff),
+                    equityImprovement: 6.8,
+                    workloadBalance: 9.2
+                  }
+                },
+                autoApplicable: true,
+                estimatedDuration: 10
+              });
+            }
           }
         }
       });
@@ -476,25 +492,48 @@ function generateBalancingSuggestions(
 
 function findCompatibleShiftSwaps(shifts1: Shift[], shifts2: Shift[]): Array<{shift1: Shift, shift2: Shift, hoursDiff: number}> {
   const swaps: Array<{shift1: Shift, shift2: Shift, hoursDiff: number}> = [];
-  
-  shifts1.forEach(shift1 => {
-    shifts2.forEach(shift2 => {
+
+  // 🔧 FIX: Filtra solo turni con ore effettive > 0
+  const validShifts1 = shifts1.filter(shift => {
+    const hours = shift.actualHours || calculateShiftHours(shift.startTime, shift.endTime) - (shift.breakDuration || 0) / 60;
+    return hours > 0;
+  });
+
+  const validShifts2 = shifts2.filter(shift => {
+    const hours = shift.actualHours || calculateShiftHours(shift.startTime, shift.endTime) - (shift.breakDuration || 0) / 60;
+    return hours > 0;
+  });
+
+  // 🔧 FIX: Verifica che entrambi i dipendenti abbiano turni validi
+  if (validShifts1.length === 0 || validShifts2.length === 0) {
+    return swaps; // Nessuno scambio possibile se uno dei due non ha turni validi
+  }
+
+  validShifts1.forEach(shift1 => {
+    validShifts2.forEach(shift2 => {
       // Verifica che i turni siano in giorni diversi o negozi diversi
       const isSameDay = shift1.date.toDateString() === shift2.date.toDateString();
       const isSameStore = shift1.storeId === shift2.storeId;
-      
+
       if (!isSameDay || !isSameStore) {
-        const hours1 = calculateShiftHours(shift1.startTime, shift1.endTime);
-        const hours2 = calculateShiftHours(shift2.startTime, shift2.endTime);
-        const hoursDiff = Math.abs(hours1 - hours2);
-        
-        // Considera solo scambi con differenza ragionevole
-        if (hoursDiff <= 2) {
-          swaps.push({ shift1, shift2, hoursDiff });
+        // 🔧 FIX: Usa actualHours se disponibile, altrimenti calcola con break
+        const hours1 = shift1.actualHours ||
+          Math.max(0, calculateShiftHours(shift1.startTime, shift1.endTime) - (shift1.breakDuration || 0) / 60);
+        const hours2 = shift2.actualHours ||
+          Math.max(0, calculateShiftHours(shift2.startTime, shift2.endTime) - (shift2.breakDuration || 0) / 60);
+
+        // 🔧 FIX: Verifica che entrambi i turni abbiano ore > 0
+        if (hours1 > 0 && hours2 > 0) {
+          const hoursDiff = Math.abs(hours1 - hours2);
+
+          // Considera solo scambi con differenza ragionevole e ore minime
+          if (hoursDiff <= 2 && Math.min(hours1, hours2) >= 2) { // Minimo 2 ore per turno
+            swaps.push({ shift1, shift2, hoursDiff });
+          }
         }
       }
     });
   });
-  
+
   return swaps.sort((a, b) => a.hoursDiff - b.hoursDiff);
 }
